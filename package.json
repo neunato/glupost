@@ -1,0 +1,13 @@
+{
+  "name": "glupost",
+  "version": "1.0.2",
+  "bin": {
+    "glupost": "bin.js"
+  },
+  "dependencies": {
+    "gulp": "^3.9.1",
+    "gulp-plumber": "^1.1.0",
+    "gulp-rename": "^1.2.2",
+    "through2": "^2.0.3"
+  }
+}
