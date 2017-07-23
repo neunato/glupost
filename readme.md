@@ -15,6 +15,10 @@ glupost md-to-html
 with a `gulp.config.js`
 
 ```javascript
+// Transforms.
+const toc    = (contents, file) => require("gulp-markdown-toc")();
+const marked = (contents, file) => require("marked")(contents);
+
 const configuration = {
   
   template: {
@@ -26,8 +30,8 @@ const configuration = {
     "md-to-html": {
       src: "src/docs/*.md",
       watch: "src/docs/*.md",
-      rename: path => path.extname = ".html",
-      transforms: [ contents => require("marked")(contents) ]
+      rename: { extname: ".html" },
+      transforms: [ toc, marked ]
     },
     "default": {
       deps: ["md-to-html", "watch"]
@@ -72,6 +76,8 @@ A simple node module exporting a configuration object like __`{ tasks [, templat
 __tasks__ is an object containing configured tasks, invoked by running `glupost <name>`.
 
 __template__ is a an object serving as a base for all tasks.
+
+_Note: gulp.config.js also acts as a normal gulpfile which means you can freely use the [gulp interface](https://github.com/gulpjs/gulp/blob/master/docs/API.md)._
 
 -----
 
