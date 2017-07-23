@@ -6,60 +6,18 @@ const rename = require("gulp-rename");
 const Vinyl = require("vinyl");
 
 const configuration = require("../../gulp.config.js");
-
 const tasks = configuration.tasks || {};
 const template = configuration.template || {};
-const triggered = process.argv.slice(4);
-
 
 if( tasks.watch )
    throw new Error("`watch` is a reserved task.");
 
-// Implicitly triggered tasks.
-if( !triggered.length )
-   triggered.push("default");
-if( triggered.some(name => tasks[name] && tasks[name].watch) )
-   triggered.push("watch");
 
-
-activate( tasks, triggered );
-initialise( tasks, triggered, template );
-
-
-// Add an `.active` field to tasks as only the triggered
-// tasks get defined.
-function activate( tasks, triggered ){
-   
-   // Deactivate all.
-   const names = Object.keys(tasks);
-   for( const name of names )
-      tasks[name].active = false;
-
-   // Activate all that can be reached.
-   triggered.forEach(function spread( name ){
-      const task = tasks[name];
-      if( !task || task.active )
-         return;
-
-      task.active = true;
-      if( task.deps )
-         task.deps.forEach(spread);
-   });
-
-
-   if( triggered.includes("watch") ){
-      for( const name of names ){
-         const task = tasks[name];
-         if( task.watch )
-            task.active = true;
-      }
-   }
-
-}
+glupost( tasks, template );
 
 
 // Create gulp tasks.
-function initialise( tasks, triggered, template ){
+function glupost( tasks, template ){
 
    // Expand template object with defaults.
    expand(template, { transforms: [], dest: "." });
@@ -68,8 +26,6 @@ function initialise( tasks, triggered, template ){
    const names = Object.keys(tasks);
    for( const name of names ){
       const task = tasks[name];
-      if( !task.active )
-         continue;
 
       // Expand task with template.
       expand(task, template);
@@ -80,11 +36,11 @@ function initialise( tasks, triggered, template ){
 
    }
 
-   if( !triggered.includes("watch") )
+   // Create the watch task if declared and triggered.
+   if( Object.keys(tasks).every(name => !tasks[name].watch) )
       return;
 
-   // Create the watch task.
-   const tracked = spy(tasks);
+   const tracked = track(tasks);
    const paths = Object.keys(tracked);
    if( !paths.length )
       return;
@@ -101,7 +57,7 @@ function initialise( tasks, triggered, template ){
 
 
 // Store watched paths and their tasks.
-function spy( tasks ){
+function track( tasks ){
    
    const tracked = {};
 
