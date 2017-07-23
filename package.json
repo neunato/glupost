@@ -1,13 +1,17 @@
 {
   "name": "glupost",
-  "version": "1.0.2",
-  "bin": {
-    "glupost": "bin.js"
-  },
+  "version": "1.0.3",
+  "description": "Declarative gulp interface",
+  "keywords": ["gulp", "gulpfile"],
+  "license": "MIT",
+  "author": "Jan Ivica",
+  "bin": "bin.js",
+  "repository": "https://github.com/independentgeorge/glupost",
   "dependencies": {
     "gulp": "^3.9.1",
     "gulp-plumber": "^1.1.0",
     "gulp-rename": "^1.2.2",
-    "through2": "^2.0.3"
+    "through2": "^2.0.3",
+    "vinyl": "^2.1.0"
   }
 }
