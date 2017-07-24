@@ -1,19 +1,12 @@
+"use strict";
 
-const through = require("through2");
-const gulp = require("gulp");
-const plumber = require("gulp-plumber");
-const rename = require("gulp-rename");
-const Vinyl = require("vinyl");
+const gulp     = require("gulp");
+const plumber  = require("gulp-plumber");
+const rename   = require("gulp-rename");
+const through  = require("through2");
+const forward  = require("undertaker-forward-reference");
+const Vinyl    = require("vinyl");
 
-const configuration = require("../../gulp.config.js");
-const tasks = configuration.tasks || {};
-const template = configuration.template || {};
-
-if( tasks.watch )
-   throw new Error("`watch` is a reserved task.");
-
-
-glupost( tasks, template );
 
 
 // Create gulp tasks.
@@ -25,19 +18,16 @@ function glupost( tasks, template ){
    // Create tasks.
    const names = Object.keys(tasks);
    for( const name of names ){
-      const task = tasks[name];
 
       // Expand task with template.
+      const task = tasks[name];
       expand(task, template);
 
-      // Construct the pipes.
-      const action = task.src ? () => pipify(task) : undefined;
-      gulp.task( ...defined(name, task.deps, action) );
-
+      gulp.task(name, compose(task));
    }
 
    // Create the watch task if declared and triggered.
-   if( Object.keys(tasks).every(name => !tasks[name].watch) )
+   if( names.every(name => !tasks[name].watch) )
       return;
 
    const tracked = track(tasks);
@@ -45,37 +35,52 @@ function glupost( tasks, template ){
    if( !paths.length )
       return;
 
-   gulp.task("watch", function(done){
+   if( names.includes("watch") ){
+      console.warn("`watch` task redefined.");
+      return;
+   }
+
+
+   gulp.task("watch", function(){
       for( const path of paths ){
          const names = tracked[path];
-         const watcher = gulp.watch(path, names);
-         watcher.on("change", event => console.log("           " + event.path + " was " + event.type + ", running tasks..."));
+         const watcher = gulp.watch(path, gulp.parallel(names));
+         watcher.on("change", path => console.log(`${timestamp()} '${path}' was changed, running [${names.join(",")}]...`));
       }
    });
 
 }
 
 
-// Store watched paths and their tasks.
-function track( tasks ){
-   
-   const tracked = {};
+// Convert task object to a function.
+function compose( task ){
 
-   const names = Object.keys(tasks);
-   for( const name of names ){
-      const task = tasks[name];
-      if( !task.watch )
-         continue;
+   if( typeof task === "string" )
+      return gulp.task(task);
 
-      const paths = [].concat(task.watch);
-      for( const path of paths ){
-         if( !tracked[path] )
-            tracked[path] = [];
-         tracked[path].push(name);
-      }
-   }
+   if( typeof task === "function" )
+      return task;
 
-   return tracked;
+   if( typeof task !== "object" )
+      throw new Error("A task must be a string, function, or object.");
+
+   const action = task.src ? () => pipify(task) : undefined;
+
+   if( !action && !task.series && !task.parallel )
+      throw new Error("A task must do something.");
+
+   if( !task.series && !task.parallel )
+      return action;
+
+   if( task.series && task.parallel )
+      throw new Error("A task can't have both .series and .parallel properties.");
+
+   const type = task.series ? "series" : "parallel";
+
+   if( action )
+      task[type].push(action);
+
+   return gulp[type]( ...task[type].map(compose) );
 
 }
 
@@ -117,8 +122,7 @@ function pluginate( transform ){
 
       // Transform function returns a vinyl file or file contents (in form of a
       // stream, a buffer or a string), or a promise which resolves with those.
-      let result = transform( file.contents, file );
-
+      const result = transform( file.contents, file );
       Promise.resolve(result).then(function(result){
          if( !Vinyl.isVinyl(result) ){
             if( result instanceof Buffer )
@@ -130,10 +134,37 @@ function pluginate( transform ){
          }
          done(null, file);
       }).catch(function(error){
-         throw new Error("Failed to streamify transforms.");
+         throw new Error(error);
       });
       
    });
+
+}
+
+
+// Store watched paths and their tasks.
+function track( tasks ){
+   
+   const tracked = {};
+
+   const names = Object.keys(tasks);
+   for( const name of names ){
+      const task = tasks[name];
+      if( !task.watch )
+         continue;
+
+      if( task.watch === true )
+         task.watch = task.src;
+
+      const paths = [].concat(task.watch);
+      for( const path of paths ){
+         if( !tracked[path] )
+            tracked[path] = [];
+         tracked[path].push(name);
+      }
+   }
+
+   return tracked;
 
 }
 
@@ -150,9 +181,26 @@ function expand( to, from ){
 }
 
 
-// Used to skip optional (undefined) arguments.
-function defined( ...args ){
+function timestamp(){
 
-   return args.filter( el => el !== undefined );
+   const time    = new Date();
+   const hours   = ("0" + time.getHours()).slice(-2);
+   const minutes = ("0" + time.getMinutes()).slice(-2);
+   const seconds = ("0" + time.getSeconds()).slice(-2);
+   return `[${hours}:${minutes}:${seconds}]`;
 
 }
+
+
+module.exports = function( configuration ){
+
+   // Enable forward referenced tasks. 
+   gulp.registry(forward());
+
+
+   const tasks = configuration.tasks || {};
+   const template = configuration.template || {};
+
+   glupost( tasks, template );
+
+};
