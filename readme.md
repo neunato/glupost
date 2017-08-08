@@ -2,23 +2,25 @@
 
 A declarative approach at gulp.
 
+Tasks are configured in `gulp.config.js`, which replaces `gulpfile.js`.
+
 
 ### Usage
 
 Running
 
 ```
-node_modules/.bin/gulp build
+node_modules/.bin/glupost
 ```
 
-with a `gulpfile.js`
+with a `gulp.config.js`
 
 ```javascript
 // Transforms/plugins.
 const toc    = (contents, file) => require("gulp-markdown-toc")();
 const marked = (contents, file) => require("marked")(contents);
 
-require("glupost")({
+const configuration = {
   
   template: {
     base: "src/",
@@ -28,17 +30,18 @@ require("glupost")({
   tasks: {
     "md-to-html": {
       src: "src/docs/*.md",
-      watch: "src/docs/*.md",
+      watch: true,
       rename: { extname: ".html" },
       transforms: [ toc, marked ]
     },
-    "build": {
+    "default": {
       series: ["md-to-html", "watch"]
-    },
-    "default": "md-to-html"
+    }
   }
 
-});
+};
+
+module.exports = configuration;
 ```
 
 and a file structure
@@ -52,7 +55,7 @@ and a file structure
 │   │   └── Examples.md
 ```
 
-would write
+would run `md-to-html` and `watch` in series, producing
 
 ```
 ├── dist/
@@ -63,17 +66,19 @@ would write
 │   │   └── Examples.html
 ```
 
-and start the generated `watch` task.
+once initially, and again on every file change.
+
 
 ### API
 
-The module exposes a function expecting a configuration object like __`{ tasks [, template] }`__.
+
+`gulp.config.js` is a simple node module exporting a configuration object like __`{ tasks [, template] }`__.
 
 __tasks__ is an object containing configured tasks, invoked by `gulp <task>`.
 
 __template__ is a an object serving as a base for all tasks.
 
-_Note: gulpfile.js still acts as a normal gulpfile; you can freely use the [gulp interface](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md)._
+_Note: gulp.config.js still acts as a normal gulpfile; you can freely use the [gulp interface](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md)._
 
 -----
 
@@ -133,7 +138,6 @@ A task (or template) configuration object accepts:
   function copyright( contents ){
     return Promise.resolve(contents + "\nCopyright © 2017");
   }
-
   ```
 
 - __task.series__
@@ -146,7 +150,7 @@ A task (or template) configuration object accepts:
 
 - __task.watch__
 
-  Paths used by [gulp.watch()](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md#gulpwatchglobs-opts-fn) to trigger the task. All watchers are invoked by the generated _watch_ task.
+  Paths used by [gulp.watch()](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md#gulpwatchglobs-opts-fn) to trigger the task. If set to `true`, the task's `.src` will be watched. All watchers are invoked by the generated _watch_ task.
 
 
  If a task has both `.src` and `.series`/`.parallel` defined, the transform function is appended to the end of the sequence.

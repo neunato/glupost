@@ -7,10 +7,18 @@ const through  = require("through2");
 const forward  = require("undertaker-forward-reference");
 const Vinyl    = require("vinyl");
 
+const cwd      = require("path").join(process.cwd(), "../..");
+
+
+// Enable forward referenced tasks. 
+gulp.registry(forward());
 
 
 // Create gulp tasks.
-function glupost( tasks, template ){
+function glupost( configuration ){
+
+   const tasks = configuration.tasks || {};
+   const template = configuration.template || {};
 
    // Expand template object with defaults.
    expand(template, { transforms: [], dest: "." });
@@ -42,9 +50,10 @@ function glupost( tasks, template ){
 
 
    gulp.task("watch", function(){
+      const options = { cwd };
       for( const path of paths ){
          const names = tracked[path];
-         const watcher = gulp.watch(path, gulp.parallel(names));
+         const watcher = gulp.watch(path, options, gulp.parallel(names));
          watcher.on("change", path => console.log(`${timestamp()} '${path}' was changed, running [${names.join(",")}]...`));
       }
    });
@@ -88,9 +97,9 @@ function compose( task ){
 // Convert transform functions to a Stream.
 function pipify( task ){
 
-   const options = task.base ? { base: task.base } : {};
+   const options = { cwd };
 
-   let stream = gulp.src(task.src, options);
+   let stream = gulp.src(task.src, task.base ? expand({ base: task.base }, options) : options);
 
    if( task.watch )
       stream = stream.pipe(plumber( message => { console.log(message); this.emit("end") } ));
@@ -102,7 +111,7 @@ function pipify( task ){
       stream = stream.pipe(rename(task.rename));
 
    if( task.dest )
-      stream = stream.pipe(gulp.dest(task.dest));
+      stream = stream.pipe(gulp.dest(task.dest, options));
 
    return stream;
 
@@ -177,6 +186,7 @@ function expand( to, from ){
       if( !to.hasOwnProperty(key) )
          to[key] = from[key];
    }
+   return to;
 
 }
 
@@ -192,15 +202,4 @@ function timestamp(){
 }
 
 
-module.exports = function( configuration ){
-
-   // Enable forward referenced tasks. 
-   gulp.registry(forward());
-
-
-   const tasks = configuration.tasks || {};
-   const template = configuration.template || {};
-
-   glupost( tasks, template );
-
-};
+module.exports = glupost;

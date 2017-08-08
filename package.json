@@ -1,10 +1,11 @@
 {
   "name": "glupost",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Declarative gulp interface",
   "license": "MIT",
   "author": "Jan Ivica",
   "repository": "independentgeorge/glupost",
+  "bin": "bin.js",
   "dependencies": {
     "gulp": "gulpjs/gulp#4.0",
     "gulp-plumber": "^1.1.0",
