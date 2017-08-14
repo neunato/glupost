@@ -1,13 +1,13 @@
 "use strict";
 
+process.chdir("../..");
+
 const gulp     = require("gulp");
 const plumber  = require("gulp-plumber");
 const rename   = require("gulp-rename");
 const through  = require("through2");
 const forward  = require("undertaker-forward-reference");
 const Vinyl    = require("vinyl");
-
-const cwd      = require("path").join(process.cwd(), "../..");
 
 
 // Enable forward referenced tasks. 
@@ -50,10 +50,9 @@ function glupost( configuration ){
 
 
    gulp.task("watch", function(){
-      const options = { cwd };
       for( const path of paths ){
          const names = tracked[path];
-         const watcher = gulp.watch(path, options, gulp.parallel(names));
+         const watcher = gulp.watch(path, gulp.parallel(names));
          watcher.on("change", path => console.log(`${timestamp()} '${path}' was changed, running [${names.join(",")}]...`));
       }
    });
@@ -97,9 +96,9 @@ function compose( task ){
 // Convert transform functions to a Stream.
 function pipify( task ){
 
-   const options = { cwd };
+   const options = task.base ? { base: task.base } : {};
 
-   let stream = gulp.src(task.src, task.base ? expand({ base: task.base }, options) : options);
+   let stream = gulp.src(task.src, options);
 
    if( task.watch )
       stream = stream.pipe(plumber( message => { console.log(message); this.emit("end") } ));
@@ -111,7 +110,7 @@ function pipify( task ){
       stream = stream.pipe(rename(task.rename));
 
    if( task.dest )
-      stream = stream.pipe(gulp.dest(task.dest, options));
+      stream = stream.pipe(gulp.dest(task.dest));
 
    return stream;
 
@@ -186,7 +185,6 @@ function expand( to, from ){
       if( !to.hasOwnProperty(key) )
          to[key] = from[key];
    }
-   return to;
 
 }
 

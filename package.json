@@ -1,6 +1,6 @@
 {
   "name": "glupost",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Declarative gulp interface",
   "license": "MIT",
   "author": "Jan Ivica",
