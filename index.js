@@ -140,9 +140,10 @@ function pluginate( transform ){
             else
                throw new Error("Transforms must return/resolve with a file, a buffer or a string.");
          }
+      }).catch(function(e){
+         console.error(e);
+      }).then(function(){
          done(null, file);
-      }).catch(function(error){
-         throw new Error(error);
       });
       
    });
