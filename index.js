@@ -48,12 +48,11 @@ function glupost( configuration ){
       return;
    }
 
-
    gulp.task("watch", function(){
       for( const path of paths ){
          const names = tracked[path];
          const watcher = gulp.watch(path, gulp.parallel(names));
-         watcher.on("change", path => console.log(`${timestamp()} '${path}' was changed, running [${names.join(",")}]...`));
+         watcher.on("change", path => console.log(`${timestamp()} '${path}' was changed, running tasks...`));
       }
    });
 
@@ -63,32 +62,45 @@ function glupost( configuration ){
 // Convert task object to a function.
 function compose( task ){
 
+   // 1. named task.
    if( typeof task === "string" )
       return gulp.task(task);
 
+   // 2. a function directly.
    if( typeof task === "function" )
       return task;
 
+   // 3. task object.
    if( typeof task !== "object" )
       throw new Error("A task must be a string, function, or object.");
 
-   const action = task.src ? () => pipify(task) : undefined;
+   // Already composed action.
+   if( task.action )
+      return task.action;
 
-   if( !action && !task.series && !task.parallel )
+   let transform = task.src ? () => pipify(task) : undefined;
+
+   // No transform function and no series/parallel.
+   if( !transform && !task.series && !task.parallel )
       throw new Error("A task must do something.");
 
-   if( !task.series && !task.parallel )
-      return action;
-
+   // Both series and parallel.
    if( task.series && task.parallel )
       throw new Error("A task can't have both .series and .parallel properties.");
 
-   const type = task.series ? "series" : "parallel";
+   // Only transform function.
+   if( !task.series && !task.parallel ){
+      task.action = transform;
+   }
+   // Series/parallel sequence of tasks.
+   else{
+      const sequence = task.series ? "series" : "parallel";
+      if( transform )
+         task[sequence].push(transform);
+      task.action = gulp[sequence]( ...task[sequence].map(compose) );
+   }
 
-   if( action )
-      task[type].push(action);
-
-   return gulp[type]( ...task[type].map(compose) );
+   return task.action;
 
 }
 
@@ -152,13 +164,14 @@ function pluginate( transform ){
 
 
 // Store watched paths and their tasks.
-function track( tasks ){
+function track( tasks, tracked = {} ){
    
-   const tracked = {};
-
+   const named = !Array.isArray(tasks);
    const names = Object.keys(tasks);
+
    for( const name of names ){
       const task = tasks[name];
+
       if( !task.watch )
          continue;
 
@@ -169,8 +182,13 @@ function track( tasks ){
       for( const path of paths ){
          if( !tracked[path] )
             tracked[path] = [];
-         tracked[path].push(name);
+         tracked[path].push( named ? name : task.action );
       }
+
+      if( task.series )
+         track(task.series, tracked);
+      if( task.parallel )
+         track(task.parallel, tracked);
    }
 
    return tracked;
