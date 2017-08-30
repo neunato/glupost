@@ -8,7 +8,6 @@
   "bin": "bin.js",
   "dependencies": {
     "gulp": "gulpjs/gulp#4.0",
-    "gulp-plumber": "^1.1.0",
     "gulp-rename": "^1.2.2",
     "through2": "^2.0.3",
     "undertaker-forward-reference": "^1.0.1",

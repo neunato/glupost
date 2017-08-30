@@ -3,7 +3,6 @@
 process.chdir("../..");
 
 const gulp     = require("gulp");
-const plumber  = require("gulp-plumber");
 const rename   = require("gulp-rename");
 const through  = require("through2");
 const forward  = require("undertaker-forward-reference");
@@ -111,9 +110,6 @@ function pipify( task ){
    const options = task.base ? { base: task.base } : {};
 
    let stream = gulp.src(task.src, options);
-
-   if( task.watch )
-      stream = stream.pipe(plumber( message => { console.log(message); this.emit("end") } ));
 
    for( const transform of task.transforms )
       stream = stream.pipe(pluginate(transform));
