@@ -110,9 +110,12 @@ function pipify( task ){
    const options = task.base ? { base: task.base } : {};
 
    let stream = gulp.src(task.src, options);
+   
+   // This is used to abort any further transforms in case of error.
+   const state = { error: false };
 
    for( const transform of task.transforms )
-      stream = stream.pipe(pluginate(transform));
+      stream = stream.pipe(pluginate(transform, state));
 
    if( task.rename )
       stream = stream.pipe(rename(task.rename));
@@ -126,20 +129,26 @@ function pipify( task ){
 
 
 // Convert a string transform function into a stream.
-function pluginate( transform ){
+function pluginate( transform, state ){
 
    return through.obj(function(file, encoding, done){
 
       // Nothing to transform.
-      if( file.isNull() ){
+      if( file.isNull() || state.error ){
          done(null, file);
          return;
       }
 
       // Transform function returns a vinyl file or file contents (in form of a
       // stream, a buffer or a string), or a promise which resolves with those.
-      const result = transform( file.contents, file );
-      Promise.resolve(result).then(function(result){
+      new Promise(function(resolve, reject){
+         try{
+            resolve( transform(file.contents, file) );
+         }
+         catch(e){
+            reject(e);
+         }
+      }).then(function(result){
          if( !Vinyl.isVinyl(result) ){
             if( result instanceof Buffer )
                file.contents = result;
@@ -150,6 +159,7 @@ function pluginate( transform ){
          }
       }).catch(function(e){
          console.error(e);
+         state.error = true;
       }).then(function(){
          done(null, file);
       });
