@@ -115,7 +115,7 @@ function pipify( task ){
    const state = { error: false };
 
    for( const transform of task.transforms )
-      stream = stream.pipe(pluginate(transform, state));
+      stream = stream.pipe(transform.pipe ? transform : pluginate(transform, state));
 
    if( task.rename )
       stream = stream.pipe(rename(task.rename));
