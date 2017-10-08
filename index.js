@@ -1,6 +1,5 @@
 "use strict";
 
-process.chdir("../..");
 
 const gulp     = require("gulp");
 const rename   = require("gulp-rename");
@@ -11,6 +10,10 @@ const Vinyl    = require("vinyl");
 
 // Enable forward referenced tasks. 
 gulp.registry(forward());
+
+
+module.exports = glupost;
+
 
 
 // Create gulp tasks.
@@ -224,5 +227,3 @@ function timestamp(){
 
 }
 
-
-module.exports = glupost;

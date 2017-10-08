@@ -2,24 +2,23 @@
 
 A declarative approach at gulp.
 
-Tasks are configured in `gulp.config.js`, which replaces `gulpfile.js`.
-
 
 ### Usage
 
 Running
 
 ```
-node_modules/.bin/glupost
+node_modules/.bin/gulp
 ```
 
-with a `gulp.config.js`
+with a `gulpfile.js`
 
 ```javascript
 // Transforms/plugins.
-const toc    = (contents, file) => require("gulp-markdown-toc")();
-const marked = (contents, file) => require("marked")(contents);
+const toc    = require("gulp-markdown-toc")()
+const marked = (contents, file) => require("marked")(contents)
 
+// Declared tasks.
 const configuration = {
   
   template: {
@@ -32,16 +31,18 @@ const configuration = {
       src: "src/docs/*.md",
       watch: true,
       rename: { extname: ".html" },
-      transforms: [ toc, marked ]
+      transforms: [toc, marked]
     },
     "default": {
       series: ["md-to-html", "watch"]
     }
   }
 
-};
+}
 
-module.exports = configuration;
+// Build the actual tasks.
+const glupost = require("glupost")
+glupost(configuration)
 ```
 
 and a file structure
@@ -71,14 +72,12 @@ once initially, and again on every file change.
 
 ### API
 
+The module exports a function expecting a configuration object like __`{ tasks [, template] }`__.
 
-`gulp.config.js` is a simple node module exporting a configuration object like __`{ tasks [, template] }`__.
+- __tasks__ is an object containing configured tasks, invoked by `gulp <task>`.
 
-__tasks__ is an object containing configured tasks, invoked by `gulp <task>`.
+- __template__ is a an object serving as a base for all tasks.
 
-__template__ is a an object serving as a base for all tasks.
-
-_Note: gulp.config.js still acts as a normal gulpfile; you can freely use the [gulp interface](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md)._
 
 -----
 
