@@ -16,6 +16,28 @@ module.exports = glupost;
 
 
 
+
+
+function retrieve( tasks, alias ){
+
+   if( typeof tasks[alias] !== "string" )
+      return tasks[alias]
+
+   const found = new Set([alias])
+
+   let task = tasks[alias]
+   do{
+      if( found.has(task) )
+         throw new Error("Circular aliases.")
+      found.add(task)
+      if( !tasks[task] )
+         throw new Error(`Task "${task}" does not exist.`)
+      task = tasks[task]
+   } while( typeof task === "string" )
+   return task
+
+}
+
 // Create gulp tasks.
 function glupost( configuration ){
 
@@ -28,10 +50,9 @@ function glupost( configuration ){
    // Create tasks.
    const names = Object.keys(tasks);
    for( const name of names ){
-
-      // Expand task with template.
-      const task = tasks[name];
-      expand(task, template);
+      const task = retrieve(tasks, name)
+      if( typeof task === "object" )
+         expand(task, template);
 
       gulp.task(name, compose(task));
    }
@@ -66,11 +87,11 @@ function compose( task ){
 
    // 1. named task.
    if( typeof task === "string" )
-      return gulp.task(task);
-
+      return task;
+   
    // 2. a function directly.
    if( typeof task === "function" )
-      return task;
+      return task.length ? task : () => Promise.resolve(task());
 
    // 3. task object.
    if( typeof task !== "object" )
@@ -80,7 +101,10 @@ function compose( task ){
    if( task.action )
       return task.action;
 
-   let transform = task.src ? () => pipify(task) : undefined;
+   let transform
+
+   if( task.src )
+      transform = () => pipify(task)
 
    // No transform function and no series/parallel.
    if( !transform && !task.series && !task.parallel )
