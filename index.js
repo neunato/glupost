@@ -47,37 +47,22 @@ function glupost( configuration ){
    // Expand template object with defaults.
    expand(template, { transforms: [], dest: "." });
 
+
    // Create tasks.
    const names = Object.keys(tasks);
    for( const name of names ){
       const task = retrieve(tasks, name)
+
       if( typeof task === "object" )
          expand(task, template);
+
+      if( task.watch === true )
+         task.watch = task.src;
 
       gulp.task(name, compose(task));
    }
 
-   // Create the watch task if declared and triggered.
-   if( names.every(name => !tasks[name].watch) )
-      return;
-
-   const tracked = track(tasks);
-   const paths = Object.keys(tracked);
-   if( !paths.length )
-      return;
-
-   if( names.includes("watch") ){
-      console.warn("`watch` task redefined.");
-      return;
-   }
-
-   gulp.task("watch", function(){
-      for( const path of paths ){
-         const names = tracked[path];
-         const watcher = gulp.watch(path, gulp.parallel(names));
-         watcher.on("change", path => console.log(`${timestamp()} '${path}' was changed, running tasks...`));
-      }
-   });
+   watch(tasks);
 
 }
 
@@ -104,7 +89,7 @@ function compose( task ){
    let transform
 
    if( task.src )
-      transform = () => pipify(task)
+      transform = () => pipify(task);
 
    // No transform function and no series/parallel.
    if( !transform && !task.series && !task.parallel )
@@ -196,37 +181,30 @@ function pluginate( transform, state ){
 }
 
 
-// Store watched paths and their tasks.
-function track( tasks, tracked = {} ){
-   
-   const named = !Array.isArray(tasks);
-   const names = Object.keys(tasks);
+// Create the watch task if declared and triggered.
+// Only top level tasks may be watched.
+function watch( tasks ){
 
-   for( const name of names ){
-      const task = tasks[name];
-
-      if( !task.watch )
-         continue;
-
-      if( task.watch === true )
-         task.watch = task.src;
-
-      const paths = [].concat(task.watch);
-      for( const path of paths ){
-         if( !tracked[path] )
-            tracked[path] = [];
-         tracked[path].push( named ? name : task.action );
-      }
-
-      if( task.series )
-         track(task.series, tracked);
-      if( task.parallel )
-         track(task.parallel, tracked);
+   if( tasks["watch"] ){
+      console.warn("`watch` task redefined.");
+      return;
    }
 
-   return tracked;
+   const names = Object.keys(tasks).filter(name => tasks[name].watch);
+   if( !names.length ){
+      return
+   }
+
+   gulp.task("watch", function(){
+      for( const name of names ){
+         const glob = tasks[name].watch;
+         const watcher = gulp.watch(glob, gulp.task(name));
+         watcher.on("change", path => console.log(`${timestamp()} '${path}' was changed, running tasks...`));
+      }
+   });
 
 }
+
 
 
 // Add new properties on `from` to `to`.

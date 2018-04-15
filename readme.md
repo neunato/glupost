@@ -149,7 +149,7 @@ A task (or template) configuration object accepts:
 
 - __task.watch__
 
-  Paths used by [gulp.watch()](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md#gulpwatchglobs-opts-fn) to trigger the task. If set to `true`, the task's `.src` will be watched. All watchers are invoked by the generated _watch_ task.
+  Paths used by [gulp.watch()](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md#gulpwatchglobs-opts-fn) to trigger the task. If set to `true`, the task's `.src` will be watched. All watchers are invoked by the generated _watch_ task. May only appear in top level (named) tasks.
 
 
  If a task has both `.src` and `.series`/`.parallel` defined, the transform function is appended to the end of the sequence.
