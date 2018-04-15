@@ -1,14 +1,21 @@
 {
   "name": "glupost",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "license": "MIT",
   "author": "Jan Ivica",
   "repository": "independentgeorge/glupost",
+  "scripts": {
+    "test": "mocha tests.js"
+  },
   "dependencies": {
     "gulp": "gulpjs/gulp#4.0",
-    "gulp-rename": "^1.2.2",
-    "through2": "^2.0.3",
-    "undertaker-forward-reference": "^1.0.1",
-    "vinyl": "^2.1.0"
+    "gulp-rename": "1.2.2",
+    "through2": "2.0.3",
+    "undertaker-forward-reference": "1.0.1",
+    "vinyl": "2.1.0"
+  },
+  "devDependencies": {
+    "fs-extra": "5.0.0",
+    "mocha": "5.1.0"
   }
 }
