@@ -8,7 +8,6 @@ const glupost = require(".")
 
 // TODO
 // - add template tests
-// - add watch tests
 // - add "Transforms must return/resolve with a file, a buffer or a string." error test
 
 let state
@@ -174,6 +173,45 @@ const tests = {
 
 }
 
+const watchers = {
+
+   "watch (true)": {
+      task: {
+         src: "birds/owls.txt",
+         dest: "birds",
+         watch: true,
+         series: [() => { state = true }]
+      },
+      triggers: [() => write("birds/owls.txt", "no")],
+      test: function(){
+         return state === true
+      }
+   },
+
+   "watch (path)": {
+      task: {
+         watch: "birds/owls.txt",
+         series: [() => { state = true }]
+      },
+      triggers: [() => write("birds/owls.txt", "no")],
+      test: function(){
+         return state === true
+      }
+   },
+
+   "watch (multiple changes)": {
+      task: {
+         watch: "birds/owls.txt",
+         series: [() => { state = (typeof state === "number") ? state + 1 : 1 }]
+      },
+      triggers: [() => write("birds/owls.txt", "yes"), () => write("birds/owls.txt", "no"), () => write("birds/owls.txt", "maybe")],
+      test: function(){
+         return state === 3
+      }
+   }
+
+}
+
 const invalids = {
 
    "nonexistent task": {
@@ -205,6 +243,15 @@ const invalids = {
       }
    },
 
+   "watch without src": {
+      error: "No path given to watch.",
+      tasks: {
+         "task": {
+            watch: true
+         }
+      }
+   },
+
    "series and parallel": {
       error: "A task can't have both .series and .parallel properties.",
       tasks: {
@@ -217,22 +264,37 @@ const invalids = {
 }
 
 
-describe("tasks", function(){
+
+// Prepare test files and cleanup routine.
+
+function prepare(){
 
    beforeEach(function(){
-      
       write("birds/owls.txt", "Do owls exist?")
       state = {}
-
    })
 
    after(cleanup)
-   process.on('exit', cleanup)
-   process.on('SIGINT', cleanup)
+   process.on("exit", cleanup)
+   process.on("SIGINT", cleanup)
+
+}
+
+// Destroy test files.
+
+function cleanup(){
+
+   fs.removeSync("./birds")
+
+}
 
 
 
-   // Create all tasks.
+describe("tasks", function(){
+
+   prepare()
+
+   // Create tasks.
    const names = Object.keys(tests)
    const tasks = names.reduce(function( result, name ){
       result[name] = tests[name].task
@@ -244,17 +306,76 @@ describe("tasks", function(){
 
    // Run tests.
    for( const name of names ){
-      const { task, test } = tests[name]
-      it(name, function(gg){
+      const { test } = tests[name]
+      it(name, function(done){
          gulp.series(
-            name,
-            done => { try{ assert.ok(test(task)); gg() } catch(e){ gg(e) } done(); }
+            name, 
+            () => {
+               try{
+                  assert.ok(test())
+                  done()
+               }
+               catch(e){
+                  done(e)
+               }
+            }
          )()
       })
    }
 
 })
 
+describe("watch tasks", function(){
+
+   prepare()
+
+   // Create tasks.
+   const names = Object.keys(watchers)
+   const tasks = names.reduce(function( result, name ){
+      result[name] = watchers[name].task
+      return result
+   }, {})
+
+   glupost({ tasks })
+
+
+   // Run tests.
+   for( const name of names ){
+      const { task, triggers, test } = watchers[name]
+      it(name, function( done ){
+         const watcher = gulp.watch(task.watch, { delay: 0 }, gulp.task(name))
+         watcher.on("ready", triggers.shift())
+         watcher.on("change", () => {
+
+            // Gulp watch uses a `setTimeout` with the previously defined `delay` (0), meaning we have to wait 
+            // awhile (10ms seems to work) for the task to start.
+            setTimeout(() => {
+
+               // Not the last trigger - call the next one in 100ms. I couldn't find the `chokidar` option that 
+               // regulates the interval needed to pass for the next change to register successfully. Either way, 
+               // this sort of delay simulates real world edits, which is ok I guess.
+               if( triggers.length ){
+                  setTimeout(triggers.shift(), 100)
+                  return
+               }
+
+               try{
+                  assert.ok(test())
+                  done()
+               }
+               catch(e){
+                  done(e)
+               }
+               watcher.close()
+
+            }, 10)
+
+         })
+
+      })
+   }
+
+})
 
 describe("errors", function(){
 
@@ -265,8 +386,6 @@ describe("errors", function(){
    }
 
 })
-
-
 
 
 
@@ -291,11 +410,3 @@ function write( path, content ){
       fs.ensureDirSync(path)
 
 }
-
-function cleanup(){
-
-   fs.removeSync("./birds")
-
-}
-
-

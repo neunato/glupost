@@ -56,9 +56,6 @@ function glupost( configuration ){
       if( typeof task === "object" )
          expand(task, template);
 
-      if( task.watch === true )
-         task.watch = task.src;
-
       gulp.task(name, compose(task));
    }
 
@@ -69,6 +66,10 @@ function glupost( configuration ){
 
 // Convert task object to a function.
 function compose( task ){
+
+   // Already composed action.
+   if( task.action )
+      return task.action;
 
    // 1. named task.
    if( typeof task === "string" )
@@ -82,9 +83,13 @@ function compose( task ){
    if( typeof task !== "object" )
       throw new Error("A task must be a string, function, or object.");
 
-   // Already composed action.
-   if( task.action )
-      return task.action;
+   if( task.watch === true ){
+      // Watching task without a valid path.
+      if( !task.src )
+         throw new Error("No path given to watch.");
+      task.watch = task.src;
+   }
+
 
    let transform
 
