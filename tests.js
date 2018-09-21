@@ -1,8 +1,8 @@
 "use strict"
 
-const assert  = require("assert")
-const gulp    = require("gulp")
-const fs      = require("fs-extra")
+const assert = require("assert")
+const gulp = require("gulp")
+const fs = require("fs-extra")
 const glupost = require(".")
 
 
@@ -12,48 +12,47 @@ const glupost = require(".")
 
 let state
 
-
 const tests = {
 
    "function (sync)": {
-      task: function(){
+      task() {
          state = true
       },
-      test: function(){
+      test() {
          return state === true
       }
    },
 
    "function (async callback)": {
-      task: function(done){
+      task(done) {
          state = true
          done()
       },
-      test: function(){
+      test() {
          return state === true
       }
    },
 
    "function (async promise)": {
-      task: function(){
+      task() {
          state = true
          return Promise.resolve()
       },
-      test: function(){
+      test() {
          return state === true
       }
    },
 
    "alias": {
       task: "function (sync)",
-      test: function(){
+      test() {
          return state === true
       }
    },
 
    "aliased alias": {
       task: "alias",
-      test: function(){
+      test() {
          return state === true
       }
    },
@@ -63,16 +62,17 @@ const tests = {
          src: "birds/owls.txt",
          rename: "birds/owls-do.txt"
       },
-      test: function(){
+      test() {
          return read("birds/owls.txt") === read("birds/owls-do.txt")
       }
    },
+
    "object (dest)": {
       task: {
          src: "birds/owls.txt",
          dest: "birds/prey/"
       },
-      test: function(){
+      test() {
          return read("birds/owls.txt") === read("birds/prey/owls.txt")
       }
    },
@@ -83,7 +83,7 @@ const tests = {
          base: "",
          dest: "birds/prey/"
       },
-      test: function(){
+      test() {
          return read("birds/owls.txt") === read("birds/prey/owls.txt")
       }
    },
@@ -91,10 +91,10 @@ const tests = {
    "object (transform-string)": {
       task: {
          src: "birds/owls.txt",
-         dest: "birds/",         
-         transforms: [(contents, file) => "maybe"]
+         dest: "birds/",
+         transforms: [() => "maybe"]
       },
-      test: function(){
+      test() {
          return read("birds/owls.txt") === "maybe"
       }
    },
@@ -103,9 +103,9 @@ const tests = {
       task: {
          src: "birds/owls.txt",
          dest: "birds/",
-         transforms: [(contents, file) => Buffer.from("maybe")]
+         transforms: [() => Buffer.from("maybe")]
       },
-      test: function(){
+      test() {
          return read("birds/owls.txt") === "maybe"
       }
    },
@@ -114,9 +114,14 @@ const tests = {
       task: {
          src: "birds/owls.txt",
          dest: "birds/",
-         transforms: [(contents, file) => { file.contents = Buffer.from("maybe"); return file }]
+         transforms: [
+            (contents, file) => {
+               file.contents = Buffer.from("maybe")
+               return file
+            }
+         ]
       },
-      test: function(){
+      test() {
          return read("birds/owls.txt") === "maybe"
       }
    },
@@ -125,9 +130,9 @@ const tests = {
       task: {
          src: "birds/owls.txt",
          dest: "birds/",
-         transforms: [(contents, file) => Promise.resolve("maybe")]
+         transforms: [() => Promise.resolve("maybe")]
       },
-      test: function(){
+      test() {
          return read("birds/owls.txt") === "maybe"
       }
    },
@@ -137,12 +142,15 @@ const tests = {
          src: "birds/owls.txt",
          dest: "birds/",
          transforms: [
-            (contents, file) => contents + "\n- yes",
-            (contents, file) => Buffer.concat([contents, Buffer.from("\n- no")]),
-            (contents, file) => { file.contents = Buffer.concat([file.contents, Buffer.from("\n- maybe")]); return file }
+            (contents) => `${contents}\n- yes`,
+            (contents) => Buffer.concat([contents, Buffer.from("\n- no")]),
+            (contents, file) => {
+               file.contents = Buffer.concat([file.contents, Buffer.from("\n- maybe")])
+               return file
+            }
          ]
       },
-      test: function(){
+      test() {
          return read("birds/owls.txt") === "Do owls exist?\n- yes\n- no\n- maybe"
       }
    },
@@ -150,11 +158,14 @@ const tests = {
    "object (series)": {
       task: {
          series: [
-            (done) => setTimeout( () => { state.first = time(); done() }, 100 ),
-            () => state.second = time()
+            (done) => setTimeout(() => {
+               state.first = time()
+               done()
+            }, 100),
+            () => (state.second = time())
          ]
       },
-      test: function(){
+      test() {
          return state.first < state.second
       }
    },
@@ -162,11 +173,14 @@ const tests = {
    "object (parallel)": {
       task: {
          parallel: [
-            (done) => setTimeout( () => { state.first = time(); done() }, 100 ),
-            () => state.second = time()
+            (done) => setTimeout(() => {
+               state.first = time()
+               done()
+            }, 100),
+            () => (state.second = time())
          ]
       },
-      test: function(){
+      test() {
          return state.first > state.second
       }
    }
@@ -180,10 +194,10 @@ const watchers = {
          src: "birds/owls.txt",
          dest: "birds",
          watch: true,
-         series: [() => { state = true }]
+         series: [() => (state = true)]
       },
       triggers: [() => write("birds/owls.txt", "no")],
-      test: function(){
+      test() {
          return state === true
       }
    },
@@ -191,10 +205,10 @@ const watchers = {
    "watch (path)": {
       task: {
          watch: "birds/owls.txt",
-         series: [() => { state = true }]
+         series: [() => (state = true)]
       },
       triggers: [() => write("birds/owls.txt", "no")],
-      test: function(){
+      test() {
          return state === true
       }
    },
@@ -202,10 +216,10 @@ const watchers = {
    "watch (multiple changes)": {
       task: {
          watch: "birds/owls.txt",
-         series: [() => { state = (typeof state === "number") ? state + 1 : 1 }]
+         series: [() => (state = typeof state === "number" ? state + 1 : 1)]
       },
       triggers: [() => write("birds/owls.txt", "yes"), () => write("birds/owls.txt", "no"), () => write("birds/owls.txt", "maybe")],
-      test: function(){
+      test() {
          return state === 3
       }
    }
@@ -267,9 +281,9 @@ const invalids = {
 
 // Prepare test files and cleanup routine.
 
-function prepare(){
+function prepare() {
 
-   beforeEach(function(){
+   beforeEach(() => {
       write("birds/owls.txt", "Do owls exist?")
       state = {}
    })
@@ -282,7 +296,7 @@ function prepare(){
 
 // Destroy test files.
 
-function cleanup(){
+function cleanup() {
 
    fs.removeSync("./birds")
 
@@ -290,13 +304,13 @@ function cleanup(){
 
 
 
-describe("tasks", function(){
+describe("tasks", () => {
 
    prepare()
 
    // Create tasks.
    const names = Object.keys(tests)
-   const tasks = names.reduce(function( result, name ){
+   const tasks = names.reduce((result, name) => {
       result[name] = tests[name].task
       return result
    }, {})
@@ -305,17 +319,17 @@ describe("tasks", function(){
 
 
    // Run tests.
-   for( const name of names ){
+   for (const name of names) {
       const { test } = tests[name]
-      it(name, function(done){
+      it(name, (done) => {
          gulp.series(
-            name, 
+            name,
             () => {
-               try{
+               try {
                   assert.ok(test())
                   done()
                }
-               catch(e){
+               catch (e) {
                   done(e)
                }
             }
@@ -325,13 +339,13 @@ describe("tasks", function(){
 
 })
 
-describe("watch tasks", function(){
+describe("watch tasks", () => {
 
    prepare()
 
    // Create tasks.
    const names = Object.keys(watchers)
-   const tasks = names.reduce(function( result, name ){
+   const tasks = names.reduce((result, name) => {
       result[name] = watchers[name].task
       return result
    }, {})
@@ -340,30 +354,30 @@ describe("watch tasks", function(){
 
 
    // Run tests.
-   for( const name of names ){
+   for (const name of names) {
       const { task, triggers, test } = watchers[name]
-      it(name, function( done ){
+      it(name, (done) => {
          const watcher = gulp.watch(task.watch, { delay: 0 }, gulp.task(name))
          watcher.on("ready", triggers.shift())
          watcher.on("change", () => {
 
-            // Gulp watch uses a `setTimeout` with the previously defined `delay` (0), meaning we have to wait 
+            // Gulp watch uses a `setTimeout` with the previously defined `delay` (0), meaning we have to wait
             // awhile (10ms seems to work) for the task to start.
             setTimeout(() => {
 
-               // Not the last trigger - call the next one in 100ms. I couldn't find the `chokidar` option that 
-               // regulates the interval needed to pass for the next change to register successfully. Either way, 
+               // Not the last trigger - call the next one in 100ms. I couldn't find the `chokidar` option that
+               // regulates the interval needed to pass for the next change to register successfully. Either way,
                // this sort of delay simulates real world edits, which is ok I guess.
-               if( triggers.length ){
+               if (triggers.length) {
                   setTimeout(triggers.shift(), 100)
                   return
                }
 
-               try{
+               try {
                   assert.ok(test())
                   done()
                }
-               catch(e){
+               catch (e) {
                   done(e)
                }
                watcher.close()
@@ -377,34 +391,34 @@ describe("watch tasks", function(){
 
 })
 
-describe("errors", function(){
+describe("errors", () => {
 
    const names = Object.keys(invalids)
-   for( const name of names ){
+   for (const name of names) {
       const config = invalids[name]
-      it(name, () => assert.throws(() => glupost(config), e => (e instanceof Error && e.message === config.error)))
+      it(name, () => assert.throws(() => glupost(config), (e) => e instanceof Error && e.message === config.error))
    }
 
 })
 
 
 
-function time(){
-   
+function time() {
+
    const [s, ns] = process.hrtime()
-   return s * 1000000 + ns / 1000
+   return (s * 1000000) + (ns / 1000)
 
 }
 
-function read( path ){
+function read(path) {
 
    return fs.readFileSync(path, "utf8")
 
 }
 
-function write( path, content ){
+function write(path, content) {
 
-   if( content )
+   if (content)
       fs.outputFileSync(path, content)
    else
       fs.ensureDirSync(path)
