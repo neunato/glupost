@@ -8,19 +8,18 @@ A declarative approach at gulp.
 Running
 
 ```
-node_modules/.bin/gulp
+gulp
 ```
 
 with a `gulpfile.js`
 
 ```javascript
 // Transforms/plugins.
-const toc    = require("gulp-markdown-toc")()
+const toc = require("gulp-markdown-toc")()
 const marked = (contents, file) => require("marked")(contents)
 
 // Declared tasks.
 const configuration = {
-  
   template: {
     base: "src/",
     dest: "dist/"
@@ -37,7 +36,6 @@ const configuration = {
       series: ["md-to-html", "watch"]
     }
   }
-
 }
 
 // Build the actual tasks.
@@ -102,15 +100,15 @@ A task (or template) configuration object accepts:
 
 - __task.src__
 
-  String passed to [gulp.src()](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md#gulpsrcglobs-options) to start the stream or a vinyl file.
+  String passed to [gulp.src()](https://gulpjs.com/docs/en/api/src) to start the stream or a [Vinyl](https://gulpjs.com/docs/en/api/vinyl) file.
 
 - __task.dest__
 
-  Passed to [gulp.dest()](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md#gulpdestpath-options) to output the files. Defaults to gulp's working directory.
+  Passed to [gulp.dest()](https://gulpjs.com/docs/en/api/dest) to output the files. Defaults to gulp's working directory.
 
 - __task.base__
 
-  Passed as [base](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md#optionsbase) option to gulp.src().
+  Passed as [base](https://gulpjs.com/docs/en/api/src#options) option to gulp.src().
 
 - __task.rename__
 
@@ -118,38 +116,38 @@ A task (or template) configuration object accepts:
 
 - __task.transforms__
 
-  Array of transform functions which receive [file.contents](https://github.com/gulpjs/vinyl#filecontents) and [file](https://github.com/gulpjs/vinyl) parameters and must return a vinyl file or its contents directly (in form of a string or a buffer), or a promise which resolves with one of those.
+  Array of transform functions which receive [file.contents](https://gulpjs.com/docs/en/api/vinyl#options) and [file](https://gulpjs.com/docs/en/api/vinyl) parameters and must return a Vinyl file or its contents directly (in form of a string or a buffer), or a promise which resolves with one of those.
  
   ```javascript
   // Return string directly.
-  function copyright( contents ){
-    return contents + "\nCopyright © 2017";
+  function copyright(contents) {
+    return contents + "\nCopyright © 2017"
   }
 
-  // Return vinyl file.
-  function copyright( contents, file ){
-    const suffix = Buffer.from("\nCopyright © 2017");
-    file.contents = Buffer.concat(contents, suffix);
-    return file;
+  // Return Vinyl file.
+  function copyright(contents, file) {
+    const suffix = Buffer.from("\nCopyright © 2017")
+    file.contents = Buffer.concat(contents, suffix)
+    return file
   }
 
   // Return promise.
-  function copyright( contents ){
-    return Promise.resolve(contents + "\nCopyright © 2017");
+  function copyright(contents) {
+    return Promise.resolve(contents + "\nCopyright © 2017")
   }
   ```
 
 - __task.series__
 
-  Passed to [gulp.series()](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md#gulpseriestasks), but also accepts task configuration objects.
+  Passed to [gulp.series()](https://gulpjs.com/docs/en/api/series), but also accepts task configuration objects.
 
 - __task.parallel__
 
-  Passed to [gulp.parallel()](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md#gulpparalleltasks), but also accepts task configuration objects.
+  Passed to [gulp.parallel()](https://gulpjs.com/docs/en/api/parallel), but also accepts task configuration objects.
 
 - __task.watch__
 
-  Paths used by [gulp.watch()](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md#gulpwatchglobs-opts-fn) to trigger the task. If set to `true`, the task's `.src` will be watched. All watchers are invoked by the generated _watch_ task. May only appear in top level (named) tasks.
+  Paths used by [gulp.watch()](https://gulpjs.com/docs/en/api/watch) to trigger the task. If set to `true`, the task's `.src` will be watched. All watchers are invoked by the generated _watch_ task. May only appear in top level (named) tasks.
 
 
  If a task has both `.src` and `.series`/`.parallel` defined, the transform function is appended to the end of the sequence.
