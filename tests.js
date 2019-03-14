@@ -4,6 +4,7 @@ const assert = require("assert")
 const gulp = require("gulp")
 const fs = require("fs-extra")
 const glupost = require(".")
+const Vinyl = require("vinyl")
 
 
 // TODO
@@ -54,6 +55,18 @@ const tests = {
       task: "alias",
       test() {
          return state === true
+      }
+   },
+
+   "object (Vinyl src)": {
+      task: {
+         src: new Vinyl({
+            path: "birds/owls.txt",
+            contents: Buffer.from("maybe")
+         })
+      },
+      test() {
+         return read("birds/owls.txt") === "maybe"
       }
    },
 

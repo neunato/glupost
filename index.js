@@ -88,6 +88,8 @@ function compose(task) {
       task.watch = task.src
    }
 
+   if (task.src && typeof task.src !== "string" && !(task.src instanceof Vinyl))
+      throw new Error("Task's .src must be a string or a Vinyl file.")
 
    let transform
 
@@ -123,9 +125,16 @@ function compose(task) {
 // Convert transform functions to a Stream.
 function pipify(task) {
 
-   const options = task.base ? { base: task.base } : {}
+   let stream
 
-   let stream = gulp.src(task.src, options)
+   if (typeof task.src === "string") {
+      const options = task.base ? { base: task.base } : {}
+      stream = gulp.src(task.src, options)
+   }
+   else {
+      stream = through.obj((file, encoding, done) => done(null, file))
+      stream.end(task.src)
+   }
 
    // This is used to abort any further transforms in case of error.
    const state = { error: false }

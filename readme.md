@@ -102,7 +102,7 @@ A task (or template) configuration object accepts:
 
 - __task.src__
 
-  Passed to [gulp.src()](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md#gulpsrcglobs-options) to start the stream.
+  String passed to [gulp.src()](https://github.com/gulpjs/gulp/blob/4.0/docs/API.md#gulpsrcglobs-options) to start the stream or a vinyl file.
 
 - __task.dest__
 
