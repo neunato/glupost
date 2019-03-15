@@ -136,11 +136,8 @@ function pipify(task) {
       stream.end(task.src)
    }
 
-   // This is used to abort any further transforms in case of error.
-   const state = { error: false }
-
    for (const transform of task.transforms)
-      stream = stream.pipe(transform.pipe ? transform : pluginate(transform, state))
+      stream = stream.pipe(transform.pipe ? transform : pluginate(transform))
 
    if (task.rename)
       stream = stream.pipe(rename(task.rename))
@@ -154,25 +151,20 @@ function pipify(task) {
 
 
 // Convert a string transform function into a stream.
-function pluginate(transform, state) {
+function pluginate(transform) {
 
    return through.obj((file, encoding, done) => {
 
       // Nothing to transform.
-      if (file.isNull() || state.error) {
+      if (file.isNull()) {
          done(null, file)
          return
       }
 
       // Transform function returns a vinyl file or file contents (in form of a
       // stream, a buffer or a string), or a promise which resolves with those.
-      new Promise((resolve, reject) => {
-         try {
-            resolve(transform(file.contents, file))
-         }
-         catch (e) {
-            reject(e)
-         }
+      new Promise((resolve) => {
+         resolve(transform(file.contents, file))
       }).then((result) => {
          if (!Vinyl.isVinyl(result)) {
             if (result instanceof Buffer)
@@ -182,13 +174,11 @@ function pluginate(transform, state) {
             else
                throw new Error("Transforms must return/resolve with a file, a buffer or a string.")
          }
-      }).catch((e) => {
-         console.error(e)
-         state.error = true
       }).then(() => {
          done(null, file)
+      }).catch((e) => {
+         done(e)
       })
-
    })
 
 }
