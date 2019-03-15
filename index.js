@@ -50,11 +50,7 @@ function glupost(configuration) {
    const names = Object.keys(tasks)
    for (const name of names) {
       const task = retrieve(tasks, name)
-
-      if (typeof task === "object")
-         expand(task, template)
-
-      gulp.task(name, compose(task))
+      gulp.task(name, compose(task, template))
    }
 
    watch(tasks)
@@ -63,7 +59,7 @@ function glupost(configuration) {
 
 
 // Convert task object to a function.
-function compose(task) {
+function compose(task, template) {
 
    // Already composed action.
    if (task.action)
@@ -80,6 +76,9 @@ function compose(task) {
    // 3. task object.
    if (typeof task !== "object")
       throw new Error("A task must be a string, function, or object.")
+
+
+   expand(task, template)
 
    if (task.watch === true) {
       // Watching task without a valid path.
@@ -114,7 +113,7 @@ function compose(task) {
       const sequence = task.series ? "series" : "parallel"
       if (transform)
          task[sequence].push(transform)
-      task.action = gulp[sequence](...task[sequence].map(compose))
+      task.action = gulp[sequence](...task[sequence].map((task) => compose(task, template)))
    }
 
    return task.action
