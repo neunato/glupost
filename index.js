@@ -106,7 +106,7 @@ function compose(task) {
 
    // Only transform function.
    if (!task.series && !task.parallel) {
-      task.action = transform
+      task.action = () => transform()
    }
 
    // Series/parallel sequence of tasks.
