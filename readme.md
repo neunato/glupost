@@ -117,7 +117,7 @@ A task (or template) configuration object accepts:
 - __task.transforms__
 
   Array of transform functions which receive [file.contents](https://gulpjs.com/docs/en/api/vinyl#options) and [file](https://gulpjs.com/docs/en/api/vinyl) parameters and must return a Vinyl file or its contents directly (in form of a string or a buffer), or a promise which resolves with one of those.
- 
+
   ```javascript
   // Return string directly.
   function copyright(contents) {
@@ -148,6 +148,3 @@ A task (or template) configuration object accepts:
 - __task.watch__
 
   Paths used by [gulp.watch()](https://gulpjs.com/docs/en/api/watch) to trigger the task. If set to `true`, the task's `.src` will be watched. All watchers are invoked by the generated _watch_ task. May only appear in top level (named) tasks.
-
-
- If a task has both `.src` and `.series`/`.parallel` defined, the transform function is appended to the end of the sequence.

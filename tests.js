@@ -205,13 +205,12 @@ const watchers = {
    "watch (true)": {
       task: {
          src: "birds/owls.txt",
-         dest: "birds",
-         watch: true,
-         series: [() => (state = true)]
+         rename: "birds/owls-dont.txt",
+         watch: true
       },
       triggers: [() => write("birds/owls.txt", "no")],
       test() {
-         return state === true
+         return read("birds/owls-dont.txt") === "no"
       }
    },
 
@@ -275,6 +274,15 @@ const invalids = {
       tasks: {
          "task": {
             watch: true
+         }
+      }
+   },
+
+   "src and series/parallel": {
+      error: "A task can't have both .src and .series/.parallel properties.",
+      tasks: {
+         "task": {
+            src: " ", series: [], parallel: []
          }
       }
    },
@@ -375,7 +383,7 @@ describe("watch tasks", () => {
          watcher.on("change", () => {
 
             // Gulp watch uses a `setTimeout` with the previously defined `delay` (0), meaning we have to wait
-            // awhile (10ms seems to work) for the task to start.
+            // awhile (50ms seems to work) for the task to start.
             setTimeout(() => {
 
                // Not the last trigger - call the next one in 100ms. I couldn't find the `chokidar` option that
@@ -395,7 +403,7 @@ describe("watch tasks", () => {
                }
                watcher.close()
 
-            }, 10)
+            }, 50)
 
          })
 

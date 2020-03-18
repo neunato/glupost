@@ -87,32 +87,29 @@ function compose(task, template) {
       task.watch = task.src
    }
 
-   if (task.src && typeof task.src !== "string" && !(task.src instanceof Vinyl))
+   if (task.src && !(typeof task.src === "string" || task.src instanceof Vinyl))
       throw new Error("Task's .src must be a string or a Vinyl file.")
 
-   let transform
-
-   if (task.src)
-      transform = () => pipify(task)
-
    // No transform function and no series/parallel.
-   if (!transform && !task.series && !task.parallel)
+   if (!task.src && !(task.series || task.parallel))
       throw new Error("A task must do something.")
+
+   // Transform function and series/parallel.
+   if (task.src && (task.series || task.parallel))
+      throw new Error("A task can't have both .src and .series/.parallel properties.")
 
    // Both series and parallel.
    if (task.series && task.parallel)
       throw new Error("A task can't have both .series and .parallel properties.")
 
-   // Only transform function.
-   if (!task.series && !task.parallel) {
-      task.action = () => transform()
-   }
 
+   // Transform function.
+   if (task.src) {
+      task.action = () => pipify(task)
+   }
    // Series/parallel sequence of tasks.
    else {
       const sequence = task.series ? "series" : "parallel"
-      if (transform)
-         task[sequence].push(transform)
       task.action = gulp[sequence](...task[sequence].map((task) => compose(task, template)))
    }
 
