@@ -67,7 +67,7 @@ function compose(task, template) {
 
    // 1. named task.
    if (typeof task === "string")
-      return task
+      return gulp.task(task)
 
    // 2. a function directly.
    if (typeof task === "function")
@@ -90,22 +90,25 @@ function compose(task, template) {
    if (task.src && !(typeof task.src === "string" || task.src instanceof Vinyl))
       throw new Error("Task's .src must be a string or a Vinyl file.")
 
-   // No transform function and no series/parallel.
-   if (!task.src && !(task.series || task.parallel))
+   // No transform function and no task/series/parallel.
+   if (!task.src && !(task.task || task.series || task.parallel))
       throw new Error("A task must do something.")
 
-   // Transform function and series/parallel.
-   if (task.src && (task.series || task.parallel))
-      throw new Error("A task can't have both .src and .series/.parallel properties.")
+   // Transform function and task/series/parallel.
+   if (task.src && (task.task || task.series || task.parallel))
+      throw new Error("A task can't have both .src and .task/.series/.parallel properties.")
 
-   // Both series and parallel.
-   if (task.series && task.parallel)
-      throw new Error("A task can't have both .series and .parallel properties.")
-
+   // Combining task/series/parallel.
+   if (task.hasOwnProperty("task") + task.hasOwnProperty("series") + task.hasOwnProperty("parallel") > 1)
+      throw new Error("A task can only have one of .task/.series/.parallel properties.")
 
    // Transform function.
    if (task.src) {
       task.action = () => pipify(task)
+   }
+   // Callback function.
+   else if (task.task) {
+      task.action = compose(task.task, template)
    }
    // Series/parallel sequence of tasks.
    else {

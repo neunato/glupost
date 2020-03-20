@@ -168,6 +168,24 @@ const tests = {
       }
    },
 
+   "object (task callback)": {
+      task: {
+         task: () => (state = true)
+      },
+      test() {
+         return state === true
+      }
+   },
+
+   "object (task object)": {
+      task: {
+         task: "object (task callback)"
+      },
+      test() {
+         return state === true
+      }
+   },
+
    "object (series)": {
       task: {
          series: [
@@ -217,7 +235,7 @@ const watchers = {
    "watch (path)": {
       task: {
          watch: "birds/owls.txt",
-         series: [() => (state = true)]
+         task: () => (state = true)
       },
       triggers: [() => write("birds/owls.txt", "no")],
       test() {
@@ -228,7 +246,7 @@ const watchers = {
    "watch (multiple changes)": {
       task: {
          watch: "birds/owls.txt",
-         series: [() => (state = typeof state === "number" ? state + 1 : 1)]
+         task: () => (state = typeof state === "number" ? state + 1 : 1)
       },
       triggers: [() => write("birds/owls.txt", "yes"), () => write("birds/owls.txt", "no"), () => write("birds/owls.txt", "maybe")],
       test() {
@@ -279,7 +297,7 @@ const invalids = {
    },
 
    "src and series/parallel": {
-      error: "A task can't have both .src and .series/.parallel properties.",
+      error: "A task can't have both .src and .task/.series/.parallel properties.",
       tasks: {
          "task": {
             src: " ", series: [], parallel: []
@@ -288,7 +306,7 @@ const invalids = {
    },
 
    "series and parallel": {
-      error: "A task can't have both .series and .parallel properties.",
+      error: "A task can only have one of .task/.series/.parallel properties.",
       tasks: {
          "task": {
             series: [], parallel: []
