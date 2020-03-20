@@ -37,23 +37,29 @@ function retrieve(tasks, alias) {
 }
 
 // Create gulp tasks.
-function glupost(configuration) {
+function glupost(configuration, options = {}) {
 
+   const exports = {}
    const tasks = configuration.tasks || {}
    const template = configuration.template || {}
+   const register = options.register || false
 
    // Expand template object with defaults.
    expand(template, { transforms: [], dest: "." })
 
-
    // Create tasks.
    const names = Object.keys(tasks)
    for (const name of names) {
-      const task = retrieve(tasks, name)
-      gulp.task(name, compose(task, template))
+      let task = retrieve(tasks, name)
+      task = compose(task, template)
+      exports[name] = task
+      if (register)
+         gulp.task(name, task)
    }
 
    watch(tasks)
+
+   return exports
 
 }
 

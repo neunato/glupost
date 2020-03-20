@@ -316,6 +316,37 @@ const invalids = {
 
 }
 
+const options = {
+
+   "register (true)": {
+      args: [
+         {tasks: {"register (true)": () => {}}},
+         {register: true}
+      ],
+
+      tests: [
+         (exports) => { assert.ok(exports.hasOwnProperty("register (true)")) },
+         (exports) => { assert.doesNotThrow(() => gulp.task("register (true)")()) }
+      ]
+   },
+
+   "register (false)": {
+      args: [
+         {tasks: {"register (false)": () => {}}},
+         {register: false}
+      ],
+
+      tests: [
+         (exports) => { assert.ok(exports.hasOwnProperty("register (false)")) },
+         (exports) => { assert.throws(
+            () => gulp.task("register (false)")(),
+            (e) => e instanceof Error && e.message === "Forward referenced task 'register (false)' not defined before use"
+         )}
+      ]
+   }
+
+}
+
 
 
 // Prepare test files and cleanup routine.
@@ -354,7 +385,7 @@ describe("tasks", () => {
       return result
    }, {})
 
-   glupost({ tasks })
+   glupost({ tasks }, { register: true })
 
 
    // Run tests.
@@ -389,7 +420,7 @@ describe("watch tasks", () => {
       return result
    }, {})
 
-   glupost({ tasks })
+   glupost({ tasks }, { register: true })
 
 
    // Run tests.
@@ -436,6 +467,27 @@ describe("errors", () => {
    for (const name of names) {
       const config = invalids[name]
       it(name, () => assert.throws(() => glupost(config), (e) => e instanceof Error && e.message === config.error))
+   }
+
+})
+
+describe("options", () => {
+
+   const entries = Object.entries(options)
+   for (let [name, {args, tests}] of entries) {
+      const exports = glupost(...args)
+      it(name, (done) => {
+         for (let test of tests) {
+            try {
+               test(exports)
+            }
+            catch (e) {
+               done(e)
+               return
+            }
+         }
+         done()
+      })
    }
 
 })
