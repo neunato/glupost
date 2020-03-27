@@ -259,7 +259,7 @@ const watchers = {
 const invalids = {
 
    "nonexistent task": {
-      error: 'Task "ghost" does not exist.',
+      error: "Task never defined: ghost.",
       tasks: {
          "alias": "ghost"
       }
@@ -291,7 +291,8 @@ const invalids = {
       error: "No path given to watch.",
       tasks: {
          "task": {
-            watch: true
+            watch: true,
+            task: () => {}
          }
       }
    },
@@ -326,7 +327,7 @@ const options = {
 
       tests: [
          (exports) => { assert.ok(exports.hasOwnProperty("register (true)")) },
-         (exports) => { assert.doesNotThrow(() => gulp.task("register (true)")()) }
+         () => { assert.doesNotThrow(() => gulp.task("register (true)")()) }
       ]
    },
 
@@ -338,10 +339,7 @@ const options = {
 
       tests: [
          (exports) => { assert.ok(exports.hasOwnProperty("register (false)")) },
-         (exports) => { assert.throws(
-            () => gulp.task("register (false)")(),
-            (e) => e instanceof Error && e.message === "Forward referenced task 'register (false)' not defined before use"
-         )}
+         () => { assert.ok(gulp.task("register (false)") === undefined) }
       ]
    }
 

@@ -1,139 +1,187 @@
 "use strict"
 
-
-const gulp = require("gulp")
-const rename = require("gulp-rename")
-const through = require("through2")
-const forward = require("undertaker-forward-reference")
-const Vinyl = require("vinyl")
-
-
-// Enable forward referenced tasks.
-gulp.registry(forward())
-
+let gulp = require("gulp")
+let rename = require("gulp-rename")
+let through = require("through2")
+let Vinyl = require("vinyl")
 
 
 module.exports = glupost
 
 
-function retrieve(tasks, alias) {
-
-   if (typeof tasks[alias] !== "string")
-      return tasks[alias]
-
-   const found = new Set([alias])
-
-   let task = tasks[alias]
-   do {
-      if (found.has(task))
-         throw new Error("Circular aliases.")
-      found.add(task)
-      if (!tasks[task])
-         throw new Error(`Task "${task}" does not exist.`)
-      task = tasks[task]
-   } while (typeof task === "string")
-   return task
-
-}
-
 // Create gulp tasks.
-function glupost(configuration, options = {}) {
-
-   const exports = {}
-   const tasks = configuration.tasks || {}
-   const template = configuration.template || {}
-   const register = options.register || false
+function glupost({tasks={}, template={}}, {register=false} = {}) {
 
    // Expand template object with defaults.
-   expand(template, { transforms: [], dest: "." })
+   expand(template, {transforms: [], dest: "."})
 
-   // Create tasks.
-   const names = Object.keys(tasks)
-   for (const name of names) {
-      let task = retrieve(tasks, name)
-      task = compose(task, template)
-      exports[name] = task
-      if (register)
+   // Replace tasks with normalised objects.
+   let entries = Object.entries(tasks)
+   for (let [name, task] of entries)
+      tasks[name] = init(task, template)
+
+   // Create watch task (after other tasks are initialised).
+   let watch_task = create_watch_task(tasks)
+   if (watch_task)
+      tasks["watch"] = init(watch_task)
+
+   // Compose gulp tasks (after watch task is ready).
+   let gulp_tasks = {}
+   entries = Object.entries(tasks)
+   for (let [name, task] of entries)
+      gulp_tasks[name] = compose(task, tasks)
+
+   if (register) {
+      entries = Object.entries(gulp_tasks)
+      for (let [name, task] of entries)
          gulp.task(name, task)
    }
 
-   watch(tasks)
-
-   return exports
-
+   return gulp_tasks
 }
 
 
-// Convert task object to a function.
-function compose(task, template) {
+// Recursively validate and normalise task and its properties, add wrappers around
+// strings and functions, and return the (wrapped) task.
+function init(task, template) {
+   validate(task)
 
-   // Already composed action.
+   // 1. named task.
+   if (typeof task === "string") {
+      return {alias: task}
+   }
+
+   // 2. a function directly.
+   if (typeof task === "function") {
+      return {callback: task}
+   }
+
+   // 3. task object.
+   if (typeof task === "object") {
+      expand(task, template)
+      if (task.watch === true)
+         task.watch = task.src
+
+      if (task.task)
+         task.task = init(task.task, template)
+      else if (task.series)
+         task.series = task.series.map((task) => init(task, template))
+      else if (task.parallel)
+         task.parallel = task.parallel.map((task) => init(task, template))
+
+      return task
+   }
+}
+
+
+// Recursively compose task's action and return it.
+function compose(task, tasks, aliases=new Set()) {
    if (task.action)
       return task.action
 
-   // 1. named task.
-   if (typeof task === "string")
-      return gulp.task(task)
+   let action
 
-   // 2. a function directly.
-   if (typeof task === "function")
-      return task.length ? task : () => Promise.resolve(task())
+   if (task.alias) {
+      let name = task.alias
+      let aliased_task = tasks[name]
 
-   // 3. task object.
-   if (typeof task !== "object")
-      throw new Error("A task must be a string, function, or object.")
+      if (!aliased_task)
+         throw new Error("Task never defined: " + name + ".")
+      if (aliases.has(name))
+         throw new Error("Circular aliases.")
 
-
-   expand(task, template)
-
-   if (task.watch === true) {
-      // Watching task without a valid path.
-      if (!task.src)
-         throw new Error("No path given to watch.")
-      task.watch = task.src
+      aliases.add(name)
+      action = compose(aliased_task, tasks, aliases)
    }
 
-   if (task.src && !(typeof task.src === "string" || task.src instanceof Vinyl))
-      throw new Error("Task's .src must be a string or a Vinyl file.")
-
-   // No transform function and no task/series/parallel.
-   if (!task.src && !(task.task || task.series || task.parallel))
-      throw new Error("A task must do something.")
-
-   // Transform function and task/series/parallel.
-   if (task.src && (task.task || task.series || task.parallel))
-      throw new Error("A task can't have both .src and .task/.series/.parallel properties.")
-
-   // Combining task/series/parallel.
-   if (task.hasOwnProperty("task") + task.hasOwnProperty("series") + task.hasOwnProperty("parallel") > 1)
-      throw new Error("A task can only have one of .task/.series/.parallel properties.")
-
-   // Transform function.
-   if (task.src) {
-      task.action = () => pipify(task)
+   else if (task.callback) {
+      let f = task.callback
+      action = f.length ? f : async () => f()
    }
-   // Callback function.
+
+   else if (task.src) {
+      action = () => streamify(task)
+   }
+
    else if (task.task) {
-      task.action = compose(task.task, template)
+      action = compose(task.task, tasks, aliases)
    }
-   // Series/parallel sequence of tasks.
+
+   else if (task.series) {
+      let subtasks = task.series.map((task) => compose(task, tasks, aliases))
+      action = gulp.series(...subtasks)
+   }
+
+   else if (task.parallel) {
+      let subtasks = task.parallel.map((task) => compose(task, tasks, aliases))
+      action = gulp.parallel(...subtasks)
+   }
    else {
-      const sequence = task.series ? "series" : "parallel"
-      task.action = gulp[sequence](...task[sequence].map((task) => compose(task, template)))
+      throw new Error("Invalid task structure.")       // Not expected.
    }
 
-   return task.action
+   task.action = action
 
+   return action
 }
 
 
-// Convert transform functions to a Stream.
-function pipify(task) {
+// Check if task is valid.
+function validate(task) {
+   if (typeof task !== "object" && typeof task !== "string" && typeof task !== "function")
+      throw new Error("A task must be a string, function, or object.")
 
+   if (typeof task === "object") {
+      // No transform function and no task/series/parallel.
+      if (!task.src && !(task.task || task.series || task.parallel))
+         throw new Error("A task must do something.")
+
+      // Transform function and task/series/parallel.
+      if (task.src && (task.task || task.series || task.parallel))
+         throw new Error("A task can't have both .src and .task/.series/.parallel properties.")
+
+      // Combining task/series/parallel.
+      if (task.hasOwnProperty("task") + task.hasOwnProperty("series") + task.hasOwnProperty("parallel") > 1)
+         throw new Error("A task can only have one of .task/.series/.parallel properties.")
+
+      // Invalid .src.
+      if (task.src && !(typeof task.src === "string" || task.src instanceof Vinyl))
+         throw new Error("Task's .src must be a string or a Vinyl file.")
+
+      // Invalid watch path.
+      if (task.watch === true && !task.src)
+         throw new Error("No path given to watch.")
+   }
+}
+
+
+// Generate a watch task based on .watch property of other tasks.
+function create_watch_task(tasks) {
+   if (tasks["watch"]) {
+      console.warn(timestamp() + "'watch' task redefined.")
+      return null
+   }
+
+   let watched = Object.values(tasks).filter(({watch}) => watch)
+
+   if (!watched.length)
+      return null
+
+   return () => {
+      for (let {watch, action} of tasks) {
+         let watcher = gulp.watch(watch, {delay: 0}, action)
+         watcher.on("change", (path) => console.log(timestamp() + " " + path + " was changed, running tasks..."))
+      }
+   }
+}
+
+
+// Convert task's transform functions to a Stream.
+function streamify(task) {
    let stream
 
    if (typeof task.src === "string") {
-      const options = task.base ? { base: task.base } : {}
+      let options = task.base ? {base: task.base} : {}
       stream = gulp.src(task.src, options)
    }
    else {
@@ -141,7 +189,7 @@ function pipify(task) {
       stream.end(task.src)
    }
 
-   for (const transform of task.transforms)
+   for (let transform of task.transforms)
       stream = stream.pipe(transform.pipe ? transform : pluginate(transform))
 
    if (task.rename)
@@ -151,13 +199,11 @@ function pipify(task) {
       stream = stream.pipe(gulp.dest(task.dest))
 
    return stream
-
 }
 
 
-// Convert a string transform function into a stream.
+// Convert a transform function into a Stream.
 function pluginate(transform) {
-
    return through.obj((file, encoding, done) => {
 
       // Nothing to transform.
@@ -185,55 +231,20 @@ function pluginate(transform) {
          done(e)
       })
    })
-
 }
 
 
-// Create the watch task if declared and triggered.
-// Only top level tasks may be watched.
-function watch(tasks) {
-
-   if (tasks["watch"]) {
-      console.warn("`watch` task redefined.")
-      return
-   }
-
-   const names = Object.keys(tasks).filter((name) => tasks[name].watch)
-   if (!names.length)
-      return
-
-
-   gulp.task("watch", () => {
-      for (const name of names) {
-         const glob = tasks[name].watch
-         const watcher = gulp.watch(glob, gulp.task(name))
-         watcher.on("change", (path) => console.log(`${timestamp()} '${path}' was changed, running tasks...`))
-      }
-   })
-
-}
-
-
-
-// Add new properties on `from` to `to`.
+// Add new properties on 'from' to 'to'.
 function expand(to, from) {
-
-   const keys = Object.keys(from)
-   for (const key of keys) {
+   let keys = Object.keys(from)
+   for (let key of keys) {
       if (!to.hasOwnProperty(key))
          to[key] = from[key]
    }
-
 }
 
 
+// Output current time in '[HH:MM:SS]' format.
 function timestamp() {
-
-   const time = new Date()
-   const hours = `0${time.getHours()}`.slice(-2)
-   const minutes = `0${time.getMinutes()}`.slice(-2)
-   const seconds = `0${time.getSeconds()}`.slice(-2)
-   return `[${hours}:${minutes}:${seconds}]`
-
+   return "[" + new Date().toLocaleTimeString("hr-HR") + "]"
 }
-
