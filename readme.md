@@ -147,4 +147,4 @@ A task (or template) configuration object accepts:
 
 - __task.watch__
 
-  Paths used by [gulp.watch()](https://gulpjs.com/docs/en/api/watch) to trigger the task. If set to `true`, the task's `.src` will be watched. All watchers are invoked by the generated _watch_ task. May only appear in top level (named) tasks.
+  Paths used by [gulp.watch()](https://gulpjs.com/docs/en/api/watch) to trigger the task. If set to `true`, the task's `.src` will be watched. All watchers are invoked by the generated _watch_ task.

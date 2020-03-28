@@ -252,8 +252,21 @@ const watchers = {
       test() {
          return state === 3
       }
-   }
+   },
 
+   "watch (private task)": {
+      task: {
+         series: [{
+            watch: "birds/owls.txt",
+            task: () => (state = true)
+         },
+         () => (state = false)]
+      },
+      triggers: [() => write("birds/owls.txt", "no")],
+      test() {
+         return state === true
+      }
+   }
 }
 
 const invalids = {
@@ -407,57 +420,38 @@ describe("tasks", () => {
 
 })
 
+
+
+
 describe("watch tasks", () => {
 
    prepare()
 
-   // Create tasks.
-   const names = Object.keys(watchers)
-   const tasks = names.reduce((result, name) => {
-      result[name] = watchers[name].task
-      return result
-   }, {})
+   let entries = Object.entries(watchers)
+   for (let [name, {task, triggers, test}] of entries) {
+      it(name, async () => {
+         glupost({ tasks: { task } }, { register: true })
 
-   glupost({ tasks }, { register: true })
-
-
-   // Run tests.
-   for (const name of names) {
-      const { task, triggers, test } = watchers[name]
-      it(name, (done) => {
-         const watcher = gulp.watch(task.watch, { delay: 0 }, gulp.task(name))
-         watcher.on("ready", triggers.shift())
-         watcher.on("change", () => {
-
-            // Gulp watch uses a `setTimeout` with the previously defined `delay` (0), meaning we have to wait
-            // awhile (50ms seems to work) for the task to start.
-            setTimeout(() => {
-
-               // Not the last trigger - call the next one in 100ms. I couldn't find the `chokidar` option that
-               // regulates the interval needed to pass for the next change to register successfully. Either way,
-               // this sort of delay simulates real world edits, which is ok I guess.
-               if (triggers.length) {
-                  setTimeout(triggers.shift(), 100)
-                  return
-               }
-
-               try {
-                  assert.ok(test())
-                  done()
-               }
-               catch (e) {
-                  done(e)
-               }
-               watcher.close()
-
-            }, 50)
-
-         })
+         let unwatch = gulp.task("watch")()
+         try {
+            for (let trigger of triggers) {
+               await sleep(75)
+               await trigger()
+            }
+            await sleep(75)
+            assert.ok(test())
+            await unwatch()
+         }
+         catch (e) {
+            await unwatch()
+            throw e
+         }
 
       })
    }
 
 })
+
 
 describe("errors", () => {
 
@@ -511,5 +505,11 @@ function write(path, content) {
       fs.outputFileSync(path, content)
    else
       fs.ensureDirSync(path)
+
+}
+
+async function sleep(ms) {
+
+   return new Promise((resolve) => setTimeout(resolve, ms))
 
 }
