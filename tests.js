@@ -7,7 +7,7 @@ let glupost = require(".")
 let async_done = require("async-done")
 let Vinyl = require("vinyl")
 
-let assert_equal = assert.strictEqual
+let assert_equal = assert.deepStrictEqual
 let assert_throws = assert.throws
 
 
@@ -250,7 +250,8 @@ let options = {
    "register (true)": {
       setup: (state) => {
          let tasks = {"main": () => {}}
-         let exports = glupost(tasks, {register: true})
+         let options = {register: true}
+         let exports = glupost(tasks, options)
          state.exports = exports
       },
       test: ({exports}) => {
@@ -262,7 +263,8 @@ let options = {
    "register (false)": {
       setup: (state) => {
          let tasks = {"main": () => {}}
-         let exports = glupost(tasks, {register: false})
+         let options = {register: false}
+         let exports = glupost(tasks, options)
          state.exports = exports
       },
       test: ({exports}) => {
@@ -271,28 +273,97 @@ let options = {
       }
    },
 
-   "template": {
+   "register (default)": {
+      setup: (state) => {
+         let tasks = {"main": () => {}}
+         let exports = glupost(tasks)
+         state.exports = exports
+      },
+      test: ({exports}) => {
+         assert_equal(typeof exports["main"], "function")
+         assert_equal(gulp.task("main"), undefined)
+      }
+   },
+
+   "template (custom)": {
       setup: async (state) => {
          let tasks = {
-            "task": () => {},
-            "wrapped task": {task: () => {}},
+            "callback": () => {},
+            "wrapped callback": {task: () => {}},
             "series": {series: [() => {}]},
             "parallel": {parallel: [() => {}]},
             "object": {src: "_"},
             "wrapped object": {task: {src: "_"}},
          }
-         let template = {"dest": "_"}
-         glupost(tasks, {template})
+         let options = {template: {"dest": "_"}}
+         glupost(tasks, options)
          state.tasks = tasks
       },
       test: ({tasks}) => {
-         assert_equal(tasks["task"].dest, undefined)
-         assert_equal(tasks["wrapped task"].dest, undefined)
+         assert_equal(tasks["callback"].dest, undefined)
+         assert_equal(tasks["wrapped callback"].dest, undefined)
          assert_equal(tasks["series"].dest, undefined)
          assert_equal(tasks["parallel"].dest, undefined)
          assert_equal(tasks["object"].dest, "_")
          assert_equal(tasks["wrapped object"].task.dest, "_")
       }
+   },
+
+   "template (default)": {
+      setup: async (state) => {
+         let tasks = {"object": {src: "_"}}
+         glupost(tasks)
+         state.tasks = tasks
+      },
+      test: ({tasks}) => {
+         assert_equal(tasks["object"].dest, ".")
+         assert_equal(tasks["object"].transforms, [])
+      }
+   },
+
+   "logger (null)": {
+      setup: async (state) => {
+         let unstub = stub_logger("stderr")
+         let tasks = {"watch": () => {}}
+         let options = {logger: null}
+         glupost(tasks, options)
+         state.output = unstub()
+      },
+      test: ({output}) => assert_equal(output, "")
+   },
+
+   "logger (console)": {
+      setup: async (state) => {
+         let unstub = stub_logger("stderr")
+         let tasks = {"watch": () => {}}
+         let options = {logger: console}
+         glupost(tasks, options)
+         state.timestamp = timestamp()
+         state.output = unstub()
+      },
+      test: ({output, timestamp}) => assert_equal(output, timestamp + " 'watch' task redefined.\n")
+   },
+
+   "logger (custom)": {
+      setup: async (state) => {
+         state.output = ""
+         state.timestamp = timestamp()
+         let tasks = {"watch": () => {}}
+         let options = {logger: {warn (message) {state.output += message}}}
+         glupost(tasks, options)
+      },
+      test: ({output, timestamp}) => assert_equal(output, timestamp + " 'watch' task redefined.")
+   },
+
+   "logger (default)": {
+      setup: async (state) => {
+         let unstub = stub_logger("stderr")
+         let tasks = {"watch": () => {}}
+         glupost(tasks)
+         state.timestamp = timestamp()
+         state.output = unstub()
+      },
+      test: ({output, timestamp}) => assert_equal(output, timestamp + " 'watch' task redefined.\n")
    }
 }
 
@@ -490,7 +561,7 @@ describe("options", () => {
       it(name, async () => run_test({setup, test}))
 })
 
-describe("configuration errors", () => {
+describe("setup errors", () => {
    let entries = Object.entries(invalids)
    for (let [name, {tasks, error}] of entries) {
       it(name, async () => {
@@ -508,7 +579,7 @@ describe("watch tasks", () => {
       it(name, async () => {
          let setup = async (state) => {
             let tasks = init(state)
-            glupost(tasks, {register: true})
+            glupost(tasks, {logger: null, register: true})
 
             // Watch task does not terminate, so instead of invoking it as a gulp task, we execute the
             // unwrapped function synchronously to setup the watchers and get the unwatch callback.
@@ -582,9 +653,25 @@ async function run_task(name) {
    })
 }
 
+function stub_logger(descriptor) {
+   descriptor = process[descriptor]
+   let captured = ""
+   let write = descriptor.write
+   descriptor.write = (string) => (captured += string)
+   let unstub_logger = () => {
+      descriptor.write = write
+      return captured
+   }
+   return unstub_logger
+}
+
 function time() {
    let [s, ns] = process.hrtime()
    return (s * 1000000) + (ns / 1000)
+}
+
+function timestamp() {
+   return "[" + new Date().toLocaleTimeString("hr-HR") + "]"
 }
 
 function read(path) {

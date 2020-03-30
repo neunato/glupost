@@ -10,10 +10,13 @@ module.exports = glupost
 
 
 // Create gulp tasks.
-function glupost(tasks={}, {template={}, register=false} = {}) {
+function glupost(tasks={}, {template={}, logger=console, register=false} = {}) {
 
    // Second call to glupost clears previous tasks.
    gulp.registry(new Registry())
+
+   if (logger === null)
+      logger = {log() {}, info() {}, debug() {}, warn() {}, error() {}}
 
    // Expand template object with defaults.
    expand(template, {transforms: [], dest: "."})
@@ -24,7 +27,7 @@ function glupost(tasks={}, {template={}, register=false} = {}) {
       tasks[name] = init(task, template)
 
    // Create watch task (after other tasks are initialised).
-   let watch_task = create_watch_task(tasks)
+   let watch_task = create_watch_task(tasks, logger)
    if (watch_task)
       tasks["watch"] = init(watch_task)
 
@@ -161,9 +164,9 @@ function validate(task) {
 
 
 // Generate a watch task based on .watch property of other tasks.
-function create_watch_task(tasks) {
+function create_watch_task(tasks, logger) {
    if (tasks["watch"]) {
-      console.warn(timestamp() + "'watch' task redefined.")
+      logger.warn(timestamp() + " 'watch' task redefined.")
       return null
    }
 
@@ -196,8 +199,8 @@ function create_watch_task(tasks) {
    return (done) => {
       let watchers = tasks.map(({watch, action}) => {
          let watcher = gulp.watch(watch, {delay: 0}, action)
-         watcher.on("change", (path) => console.log(timestamp() + " " + path + " was changed, running tasks..."))
-         console.log(timestamp() + " Watching '" + watch + "' for changes...")
+         watcher.on("change", (path) => logger.info(timestamp() + " " + path + " was changed, running tasks..."))
+         logger.info(timestamp() + " Watching '" + watch + "' for changes...")
          return watcher
       })
       return async function unwatch() {
