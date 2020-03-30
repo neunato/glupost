@@ -12,6 +12,9 @@ module.exports = glupost
 // Create gulp tasks.
 function glupost(tasks={}, {template={}, register=false} = {}) {
 
+   // Second call to glupost clears previous tasks.
+   gulp.registry(new Registry())
+
    // Expand template object with defaults.
    expand(template, {transforms: [], dest: "."})
 
@@ -284,4 +287,13 @@ function expand(to, from) {
 // Output current time in '[HH:MM:SS]' format.
 function timestamp() {
    return "[" + new Date().toLocaleTimeString("hr-HR") + "]"
+}
+
+
+class Registry {
+   constructor() { this._tasks = {} }
+   init() { this._tasks = {} }
+   get(name) { return this._tasks[name] }
+   set(name, task) { this._tasks[name] = task }
+   tasks() { return this._tasks }
 }

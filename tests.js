@@ -540,17 +540,7 @@ describe("watch tasks", () => {
 })
 
 
-class Registry {
-   constructor() { this._tasks = {} }
-   init() { this._tasks = {} }
-   get(name) { return this._tasks[name] }
-   set(name, task) { this._tasks[name] = task }
-   tasks() { return this._tasks }
-}
-
 async function run_test({setup_begin, setup, setup_end, test, error_test}) {
-   gulp.registry(new Registry())
-
    if (test && error_test)
       throw new Error("Pick .test or .error_test")
    if (!test && !error_test)
