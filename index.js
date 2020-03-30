@@ -231,26 +231,19 @@ function streamify(task) {
 // Convert a transform function into a Stream.
 function pluginate(transform) {
    return through.obj((file, encoding, done) => {
-
-      // Nothing to transform.
-      if (file.isNull()) {
-         done(null, file)
-         return
-      }
-
       // Transform function returns a vinyl file or file contents (in form of a
       // stream, a buffer or a string), or a promise which resolves with those.
       new Promise((resolve) => {
          resolve(transform(file.contents, file))
       }).then((result) => {
-         if (!Vinyl.isVinyl(result)) {
-            if (result instanceof Buffer)
-               file.contents = result
-            else if (typeof result === "string")
-               file.contents = Buffer.from(result)
-            else
-               throw new Error("Transforms must return/resolve with a file, a buffer or a string.")
-         }
+         if (Vinyl.isVinyl(result))
+            return
+         if (result instanceof Buffer)
+            file.contents = result
+         else if (typeof result === "string")
+            file.contents = Buffer.from(result)
+         else
+            throw new Error("Transforms must return/resolve with a file, a buffer or a string.")
       }).then(() => {
          done(null, file)
       }).catch((e) => {

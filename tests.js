@@ -3,13 +3,13 @@
 const assert = require("assert")
 const gulp = require("gulp")
 const fs = require("fs-extra")
+const async_done = require("async-done")
 const glupost = require(".")
 const Vinyl = require("vinyl")
 
 
 // TODO
 // - add template tests
-// - add "Transforms must return/resolve with a file, a buffer or a string." error test
 
 let state
 
@@ -314,7 +314,7 @@ const invalids = {
       error: "A task can't have both .src and .task/.series/.parallel properties.",
       tasks: {
          "task": {
-            src: " ", series: [], parallel: []
+            src: "_", series: [], parallel: []
          }
       }
    },
@@ -326,8 +326,28 @@ const invalids = {
             series: [], parallel: []
          }
       }
-   }
+   },
 
+   "object (transform return value)": {
+      error: "Transforms must return/resolve with a file, a buffer or a string.",
+      tasks: {
+         "task": {
+            src: "birds/owls.txt",
+            dest: "birds/",
+            transforms: [() => null]
+         }
+      }
+   },
+
+   "object (src file not found)": {
+      error: "File not found with singular glob: " + __dirname.replace(/\\/g, "/") + "/_ (if this was purposeful, use `allowEmpty` option)",
+
+      tasks: {
+         "task": {
+            src: "_"
+         }
+      }
+   }
 }
 
 const options = {
@@ -421,8 +441,6 @@ describe("tasks", () => {
 })
 
 
-
-
 describe("watch tasks", () => {
 
    prepare()
@@ -454,14 +472,23 @@ describe("watch tasks", () => {
 
 
 describe("errors", () => {
+   prepare()
 
    const names = Object.keys(invalids)
    for (const name of names) {
       const config = invalids[name]
-      it(name, () => assert.throws(() => glupost(config), (e) => e instanceof Error && e.message === config.error))
+      it(name, async () => {
+         await assert.rejects(
+            async () => {
+               glupost(config, { register: true })
+               await run_task("task")
+            },
+            (e) => e instanceof Error && e.message === config.error
+         )
+      })
    }
-
 })
+
 
 describe("options", () => {
 
@@ -506,6 +533,12 @@ function write(path, content) {
    else
       fs.ensureDirSync(path)
 
+}
+
+async function run_task(name) {
+   return new Promise((resolve, reject) => {
+      async_done(gulp.task(name), (error, result) => (error ? reject(error) : resolve(result)))
+   })
 }
 
 async function sleep(ms) {
