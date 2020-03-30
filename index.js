@@ -10,7 +10,7 @@ module.exports = glupost
 
 
 // Create gulp tasks.
-function glupost({tasks={}, template={}}, {register=false} = {}) {
+function glupost(tasks={}, {template={}, register=false} = {}) {
 
    // Expand template object with defaults.
    expand(template, {transforms: [], dest: "."})
@@ -58,7 +58,9 @@ function init(task, template) {
 
    // 3. task object.
    if (typeof task === "object") {
-      expand(task, template)
+      if (!task.task && !task.series && !task.parallel)
+         expand(task, template)
+
       if (task.watch === true)
          task.watch = task.src
 

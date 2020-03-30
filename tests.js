@@ -11,9 +11,6 @@ let assert_equal = assert.strictEqual
 let assert_throws = assert.throws
 
 
-// TODO
-// - add template tests
-
 let tests = {
    "function (sync)": {
       init: (state) => ({
@@ -253,7 +250,7 @@ let options = {
    "register (true)": {
       setup: (state) => {
          let tasks = {"main": () => {}}
-         let exports = glupost({tasks}, {register: true})
+         let exports = glupost(tasks, {register: true})
          state.exports = exports
       },
       test: ({exports}) => {
@@ -265,12 +262,36 @@ let options = {
    "register (false)": {
       setup: (state) => {
          let tasks = {"main": () => {}}
-         let exports = glupost({tasks}, {register: false})
+         let exports = glupost(tasks, {register: false})
          state.exports = exports
       },
       test: ({exports}) => {
          assert_equal(typeof exports["main"], "function")
          assert_equal(gulp.task("main"), undefined)
+      }
+   },
+
+   "template": {
+      setup: async (state) => {
+         let tasks = {
+            "task": () => {},
+            "wrapped task": {task: () => {}},
+            "series": {series: [() => {}]},
+            "parallel": {parallel: [() => {}]},
+            "object": {src: "_"},
+            "wrapped object": {task: {src: "_"}},
+         }
+         let template = {"dest": "_"}
+         glupost(tasks, {template})
+         state.tasks = tasks
+      },
+      test: ({tasks}) => {
+         assert_equal(tasks["task"].dest, undefined)
+         assert_equal(tasks["wrapped task"].dest, undefined)
+         assert_equal(tasks["series"].dest, undefined)
+         assert_equal(tasks["parallel"].dest, undefined)
+         assert_equal(tasks["object"].dest, "_")
+         assert_equal(tasks["wrapped object"].task.dest, "_")
       }
    }
 }
@@ -454,7 +475,7 @@ describe("tasks", () => {
       it(name, async () => {
          let setup = async (state) => {
             let tasks = init(state)
-            glupost({tasks}, {register: true})
+            glupost(tasks, {register: true})
 
             await run_task("main")
          }
@@ -473,7 +494,7 @@ describe("configuration errors", () => {
    let entries = Object.entries(invalids)
    for (let [name, {tasks, error}] of entries) {
       it(name, async () => {
-         let setup = () => glupost({tasks}, {register: true})
+         let setup = () => glupost(tasks, {register: true})
          let error_test = ({message}) => assert_equal(message, error)
 
          await run_test({setup, error_test})
@@ -487,7 +508,7 @@ describe("watch tasks", () => {
       it(name, async () => {
          let setup = async (state) => {
             let tasks = init(state)
-            glupost({tasks}, {register: true})
+            glupost(tasks, {register: true})
 
             // Watch task does not terminate, so instead of invoking it as a gulp task, we execute the
             // unwrapped function synchronously to setup the watchers and get the unwatch callback.
