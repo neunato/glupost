@@ -1,309 +1,359 @@
 "use strict"
 
-const assert = require("assert")
-const gulp = require("gulp")
-const fs = require("fs-extra")
-const async_done = require("async-done")
-const glupost = require(".")
-const Vinyl = require("vinyl")
+let assert = require("assert")
+let fs = require("fs-extra")
+let gulp = require("gulp")
+let glupost = require(".")
+let async_done = require("async-done")
+let Vinyl = require("vinyl")
+
+let assert_equal = assert.strictEqual
+let assert_throws = assert.throws
 
 
 // TODO
 // - add template tests
 
-let state
-
-const tests = {
-
+let tests = {
    "function (sync)": {
-      task() {
-         state = true
-      },
-      test() {
-         return state === true
-      }
+      init: (state) => ({
+         "main": () => {
+            state.x = true
+         }
+      }),
+      test: ({x}) => assert_equal(x, true)
    },
 
    "function (async callback)": {
-      task(done) {
-         state = true
-         done()
-      },
-      test() {
-         return state === true
-      }
+      init: (state) => ({
+         "main": (done) => {
+            state.x = true
+            setTimeout(done, 75)
+         }
+      }),
+      test: ({x}) => assert_equal(x, true)
    },
 
    "function (async promise)": {
-      task() {
-         state = true
-         return Promise.resolve()
-      },
-      test() {
-         return state === true
-      }
+      init: (state) => ({
+         "main": async () => {
+            await sleep(75)
+            state.x = true
+         }
+      }),
+      test: ({x}) => assert_equal(x, true)
    },
 
    "alias": {
-      task: "function (sync)",
-      test() {
-         return state === true
-      }
+      init: (state) => ({
+         "main": "mane",
+         "mane": () => {
+            state.x = true
+         }
+      }),
+      test: ({x}) => assert_equal(x, true)
    },
 
    "aliased alias": {
-      task: "alias",
-      test() {
-         return state === true
-      }
+      init: (state) => ({
+         "main": "mane",
+         "mane": "maine",
+         "maine": () => {
+            state.x = true
+         }
+      }),
+      test: ({x}) => assert_equal(x, true)
    },
 
-   "object (Vinyl src)": {
-      task: {
-         src: new Vinyl({
-            path: "birds/owls.txt",
-            contents: Buffer.from("maybe")
-         })
-      },
-      test() {
-         return read("birds/owls.txt") === "maybe"
-      }
+   "object (vinyl src)": {
+      init: (state) => ({
+         "main": {
+            src: new Vinyl({
+               path: "birds/owls.txt",
+               contents: Buffer.from("maybe")
+            })
+         }
+      }),
+      test: () => assert_equal(read("birds/owls.txt"), "maybe")
    },
 
    "object (rename)": {
-      task: {
-         src: "birds/owls.txt",
-         rename: "birds/owls-do.txt"
-      },
-      test() {
-         return read("birds/owls.txt") === read("birds/owls-do.txt")
-      }
+      init: (state) => ({
+         "main": {
+            src: "birds/owls.txt",
+            rename: "birds/owls-do.txt"
+         }
+      }),
+      test: () => assert_equal(read("birds/owls.txt"), read("birds/owls-do.txt"))
    },
 
    "object (dest)": {
-      task: {
-         src: "birds/owls.txt",
-         dest: "birds/prey/"
-      },
-      test() {
-         return read("birds/owls.txt") === read("birds/prey/owls.txt")
-      }
+      init: (state) => ({
+         "main": {
+            src: "birds/owls.txt",
+            dest: "birds/prey/"
+         }
+      }),
+      test: () => assert_equal(read("birds/owls.txt"), read("birds/prey/owls.txt"))
    },
 
    "object (base)": {
-      task: {
-         src: "birds/owls.txt",
-         base: "",
-         dest: "birds/prey/"
-      },
-      test() {
-         return read("birds/owls.txt") === read("birds/prey/owls.txt")
-      }
+      init: (state) => ({
+         "main": {
+            src: "birds/owls.txt",
+            base: "",
+            dest: "birds/prey/"
+         }
+      }),
+      test: () => assert_equal(read("birds/owls.txt"), read("birds/prey/owls.txt"))
    },
 
    "object (transform-string)": {
-      task: {
-         src: "birds/owls.txt",
-         dest: "birds/",
-         transforms: [() => "maybe"]
-      },
-      test() {
-         return read("birds/owls.txt") === "maybe"
-      }
+      init: (state) => ({
+         "main": {
+            src: "birds/owls.txt",
+            dest: "birds/",
+            transforms: [() => "maybe"]
+         }
+      }),
+      test: () => assert_equal(read("birds/owls.txt"), "maybe")
    },
 
    "object (transform-buffer)": {
-      task: {
-         src: "birds/owls.txt",
-         dest: "birds/",
-         transforms: [() => Buffer.from("maybe")]
-      },
-      test() {
-         return read("birds/owls.txt") === "maybe"
-      }
+      init: (state) => ({
+         "main": {
+            src: "birds/owls.txt",
+            dest: "birds/",
+            transforms: [() => Buffer.from("maybe")]
+         }
+      }),
+      test: () => assert_equal(read("birds/owls.txt"), "maybe")
    },
 
    "object (transform-vinyl)": {
-      task: {
-         src: "birds/owls.txt",
-         dest: "birds/",
-         transforms: [
-            (contents, file) => {
-               file.contents = Buffer.from("maybe")
-               return file
-            }
-         ]
-      },
-      test() {
-         return read("birds/owls.txt") === "maybe"
-      }
+      init: (state) => ({
+         "main": {
+            src: "birds/owls.txt",
+            dest: "birds/",
+            transforms: [
+               (contents, file) => {
+                  file.contents = Buffer.from("maybe")
+                  return file
+               }
+            ]
+         }
+      }),
+      test: () => assert_equal(read("birds/owls.txt"), "maybe")
    },
 
    "object (transform-promise)": {
-      task: {
-         src: "birds/owls.txt",
-         dest: "birds/",
-         transforms: [() => Promise.resolve("maybe")]
-      },
-      test() {
-         return read("birds/owls.txt") === "maybe"
-      }
+      init: (state) => ({
+         "main": {
+            src: "birds/owls.txt",
+            dest: "birds/",
+            transforms: [async () => "maybe"]
+         }
+      }),
+      test: () => assert_equal(read("birds/owls.txt"), "maybe")
    },
 
    "object (transform-chain)": {
-      task: {
-         src: "birds/owls.txt",
-         dest: "birds/",
-         transforms: [
-            (contents) => `${contents}\n- yes`,
-            (contents) => Buffer.concat([contents, Buffer.from("\n- no")]),
-            (contents, file) => {
-               file.contents = Buffer.concat([file.contents, Buffer.from("\n- maybe")])
-               return file
+      init: (state) => ({
+         "main": {
+            src: "birds/owls.txt",
+            dest: "birds/",
+            transforms: [
+               (contents) => contents + "\n- yes",
+               (contents) => Buffer.concat([contents, Buffer.from("\n- no")]),
+               (contents, file) => {
+                  file.contents = Buffer.concat([file.contents, Buffer.from("\n- maybe")])
+                  return file
+               },
+               async (contents) => contents + "!"
+            ]
+         }
+      }),
+      test: () => assert_equal(read("birds/owls.txt"), "Do owls exist?\n- yes\n- no\n- maybe!")
+   },
+
+   "object (wrapped callback)": {
+      init: (state) => ({
+         "main": {
+            task: () => {
+               state.x = true
             }
-         ]
-      },
-      test() {
-         return read("birds/owls.txt") === "Do owls exist?\n- yes\n- no\n- maybe"
-      }
+         }
+      }),
+      test: ({x}) => assert_equal(x, true)
    },
 
-   "object (task callback)": {
-      task: {
-         task: () => (state = true)
-      },
-      test() {
-         return state === true
-      }
-   },
-
-   "object (task object)": {
-      task: {
-         task: "object (task callback)"
-      },
-      test() {
-         return state === true
-      }
+   "object (wrapped alias)": {
+      init: (state) => ({
+         "main": {
+            task: "mane"
+         },
+         "mane": () => {
+            state.x = true
+         }
+      }),
+      test: ({x}) => assert_equal(x, true)
    },
 
    "object (series)": {
-      task: {
-         series: [
-            (done) => setTimeout(() => {
-               state.first = time()
-               done()
-            }, 100),
-            () => (state.second = time())
-         ]
-      },
-      test() {
-         return state.first < state.second
-      }
+      init: (state) => ({
+         "main": {
+            series: [
+               async () => {
+                  await sleep(75)
+                  state.first = time()
+               },
+               () => (state.second = time())
+            ]
+         }
+      }),
+      test: ({first, second}) => assert_equal(first < second, true)
    },
 
    "object (parallel)": {
-      task: {
-         parallel: [
-            (done) => setTimeout(() => {
-               state.first = time()
-               done()
-            }, 100),
-            () => (state.second = time())
-         ]
-      },
-      test() {
-         return state.first > state.second
-      }
-   }
+      init: (state) => ({
+         "main": {
+            parallel: [
+               async () => {
+                  await sleep(75)
+                  state.first = time()
+               },
+               () => (state.second = time())
+            ]
+         }
+      }),
+      test: ({first, second}) => assert_equal(first > second, true)
+   },
 
+   "object (invalid src)": {
+      init: (state) => ({
+         "main": {
+            src: "_"
+         }
+      }),
+      error_test: ({message}) => assert_equal(message, "File not found with singular glob: " + __dirname.replace(/\\/g, "/") + "/_ (if this was purposeful, use `allowEmpty` option)")
+   },
+
+   "object (invalid transform)": {
+      init: (state) => ({
+         "main": {
+            src: "birds/owls.txt",
+            transforms: [() => null]
+         }
+      }),
+      error_test: ({message}) => assert_equal(message, "Transforms must return/resolve with a file, a buffer or a string.")
+   }
 }
 
-const watchers = {
-
-   "watch (true)": {
-      task: {
-         src: "birds/owls.txt",
-         rename: "birds/owls-dont.txt",
-         watch: true
+let options = {
+   "register (true)": {
+      setup: (state) => {
+         let tasks = {"main": () => {}}
+         let exports = glupost({tasks}, {register: true})
+         state.exports = exports
       },
-      triggers: [() => write("birds/owls.txt", "no")],
-      test() {
-         return read("birds/owls-dont.txt") === "no"
+      test: ({exports}) => {
+         assert_equal(typeof exports["main"], "function")
+         assert_equal(exports["main"], gulp.task("main").unwrap())
       }
    },
 
-   "watch (path)": {
-      task: {
-         watch: "birds/owls.txt",
-         task: () => (state = true)
+   "register (false)": {
+      setup: (state) => {
+         let tasks = {"main": () => {}}
+         let exports = glupost({tasks}, {register: false})
+         state.exports = exports
       },
-      triggers: [() => write("birds/owls.txt", "no")],
-      test() {
-         return state === true
-      }
-   },
-
-   "watch (multiple changes)": {
-      task: {
-         watch: "birds/owls.txt",
-         task: () => (state = typeof state === "number" ? state + 1 : 1)
-      },
-      triggers: [() => write("birds/owls.txt", "yes"), () => write("birds/owls.txt", "no"), () => write("birds/owls.txt", "maybe")],
-      test() {
-         return state === 3
-      }
-   },
-
-   "watch (private task)": {
-      task: {
-         series: [{
-            watch: "birds/owls.txt",
-            task: () => (state = true)
-         },
-         () => (state = false)]
-      },
-      triggers: [() => write("birds/owls.txt", "no")],
-      test() {
-         return state === true
+      test: ({exports}) => {
+         assert_equal(typeof exports["main"], "function")
+         assert_equal(gulp.task("main"), undefined)
       }
    }
 }
 
-const invalids = {
-
-   "nonexistent task": {
+let invalids = {
+   "nonexistent task (string)": {
       error: "Task never defined: ghost.",
       tasks: {
-         "alias": "ghost"
+         "main": "ghost"
+      }
+   },
+
+   "nonexistent task (wrapped)": {
+      error: "Task never defined: ghost.",
+      tasks: {
+         "main": {
+            task: "ghost"
+         }
+      }
+   },
+
+   "nonexistent task (series)": {
+      error: "Task never defined: ghost.",
+      tasks: {
+         "main": {
+            series: ["ghost"]
+         }
+      }
+   },
+
+   "nonexistent task (parallel)": {
+      error: "Task never defined: ghost.",
+      tasks: {
+         "main": {
+            parallel: ["ghost"]
+         }
+      }
+   },
+
+   "nonexistent task (watch)": {
+      error: "Task never defined: watch.",
+      tasks: {
+         "main": "watch"
+      }
+   },
+
+   "circular aliases (self)": {
+      error: "Circular aliases.",
+      tasks: {
+         "main": "main"
       }
    },
 
    "circular aliases": {
       error: "Circular aliases.",
       tasks: {
-         "alias": "ghost",
-         "ghost": "alias"
+         "A": "B",
+         "B": {task: "C"},
+         "C": {task: {series: ["D"]}},
+         "D": {task: {parallel: ["E"]}},
+         "E": {series: ["F"]},
+         "F": {parallel: ["A"]}
       }
    },
 
    "task type": {
       error: "A task must be a string, function, or object.",
       tasks: {
-         "task": true
+         "main": true
       }
    },
 
    "noop task": {
       error: "A task must do something.",
       tasks: {
-         "task": {}
+         "main": {}
       }
    },
 
    "watch without src": {
       error: "No path given to watch.",
       tasks: {
-         "task": {
+         "main": {
             watch: true,
             task: () => {}
          }
@@ -313,7 +363,7 @@ const invalids = {
    "src and series/parallel": {
       error: "A task can't have both .src and .task/.series/.parallel properties.",
       tasks: {
-         "task": {
+         "main": {
             src: "_", series: [], parallel: []
          }
       }
@@ -322,217 +372,197 @@ const invalids = {
    "series and parallel": {
       error: "A task can only have one of .task/.series/.parallel properties.",
       tasks: {
-         "task": {
+         "main": {
             series: [], parallel: []
          }
       }
-   },
+   }
+}
 
-   "object (transform return value)": {
-      error: "Transforms must return/resolve with a file, a buffer or a string.",
-      tasks: {
-         "task": {
+let watchers = {
+   "watch (true)": {
+      init: (state) => ({
+         "main": {
             src: "birds/owls.txt",
-            dest: "birds/",
-            transforms: [() => null]
+            dest: "birds/prey/",
+            watch: true
          }
+      }),
+      triggers: [() => write("birds/owls.txt", "no")],
+      test: () => assert_equal(read("birds/prey/owls.txt"), "no")
+   },
+
+   "watch (path)": {
+      init: (state) => ({
+         "main": {
+            watch: "birds/owls.txt",
+            task: () => (state.x = true)
+         }
+      }),
+      triggers: [() => write("birds/owls.txt", "no")],
+      test: ({x}) => assert_equal(x, true)
+   },
+
+   "watch (multiple changes)": {
+      init: (state) => ({
+         "main": {
+            watch: "birds/owls.txt",
+            task: () => (state.x = (state.x ? state.x + 1 : 1))
+         }
+      }),
+      triggers: [
+         () => write("birds/owls.txt", "yes"),
+         () => write("birds/owls.txt", "no"),
+         () => write("birds/owls.txt", "maybe")
+      ],
+      test: ({x}) => {
+         assert_equal(x, 3)
+         assert_equal(read("birds/owls.txt"), "maybe")
       }
    },
 
-   "object (src file not found)": {
-      error: "File not found with singular glob: " + __dirname.replace(/\\/g, "/") + "/_ (if this was purposeful, use `allowEmpty` option)",
-
-      tasks: {
-         "task": {
-            src: "_"
+   "watch (private task)": {
+      init: (state) => ({
+         "main": {
+            series: [
+               {
+                  watch: "birds/owls.txt",
+                  task: () => (state.x = true)
+               },
+               () => (state.x = false)
+            ]
          }
-      }
+      }),
+      triggers: [() => write("birds/owls.txt", "no")],
+      test: ({x}) => assert_equal(x, true)
    }
 }
 
-const options = {
 
-   "register (true)": {
-      args: [
-         {tasks: {"register (true)": () => {}}},
-         {register: true}
-      ],
+// Before/after hooks.
+beforeEach(() => write("birds/owls.txt", "Do owls exist?"))
+afterEach(() => remove("birds"))
 
-      tests: [
-         (exports) => { assert.ok(exports.hasOwnProperty("register (true)")) },
-         () => { assert.doesNotThrow(() => gulp.task("register (true)")()) }
-      ]
-   },
-
-   "register (false)": {
-      args: [
-         {tasks: {"register (false)": () => {}}},
-         {register: false}
-      ],
-
-      tests: [
-         (exports) => { assert.ok(exports.hasOwnProperty("register (false)")) },
-         () => { assert.ok(gulp.task("register (false)") === undefined) }
-      ]
-   }
-
-}
+process.on("exit", () => remove("birds"))
+process.on("SIGINT", () => remove("birds"))
 
 
-
-// Prepare test files and cleanup routine.
-
-function prepare() {
-
-   beforeEach(() => {
-      write("birds/owls.txt", "Do owls exist?")
-      state = {}
-   })
-
-   after(cleanup)
-   process.on("exit", cleanup)
-   process.on("SIGINT", cleanup)
-
-}
-
-// Destroy test files.
-
-function cleanup() {
-
-   fs.removeSync("./birds")
-
-}
-
-
-
+// Run tests.
 describe("tasks", () => {
-
-   prepare()
-
-   // Create tasks.
-   const names = Object.keys(tests)
-   const tasks = names.reduce((result, name) => {
-      result[name] = tests[name].task
-      return result
-   }, {})
-
-   glupost({ tasks }, { register: true })
-
-
-   // Run tests.
-   for (const name of names) {
-      const { test } = tests[name]
-      it(name, (done) => {
-         gulp.series(
-            name,
-            () => {
-               try {
-                  assert.ok(test())
-                  done()
-               }
-               catch (e) {
-                  done(e)
-               }
-            }
-         )()
-      })
-   }
-
-})
-
-
-describe("watch tasks", () => {
-
-   prepare()
-
-   let entries = Object.entries(watchers)
-   for (let [name, {task, triggers, test}] of entries) {
+   let entries = Object.entries(tests)
+   for (let [name, {init, test, error_test}] of entries) {
       it(name, async () => {
-         glupost({ tasks: { task } }, { register: true })
+         let setup = async (state) => {
+            let tasks = init(state)
+            glupost({tasks}, {register: true})
 
-         let unwatch = gulp.task("watch")()
-         try {
-            for (let trigger of triggers) {
-               await sleep(75)
-               await trigger()
-            }
-            await sleep(75)
-            assert.ok(test())
-            await unwatch()
+            await run_task("main")
          }
-         catch (e) {
-            await unwatch()
-            throw e
-         }
-
-      })
-   }
-
-})
-
-
-describe("errors", () => {
-   prepare()
-
-   const names = Object.keys(invalids)
-   for (const name of names) {
-      const config = invalids[name]
-      it(name, async () => {
-         await assert.rejects(
-            async () => {
-               glupost(config, { register: true })
-               await run_task("task")
-            },
-            (e) => e instanceof Error && e.message === config.error
-         )
+         await run_test({setup, test, error_test})
       })
    }
 })
-
 
 describe("options", () => {
+   let entries = Object.entries(options)
+   for (let [name, {setup, test}] of entries)
+      it(name, async () => run_test({setup, test}))
+})
 
-   const entries = Object.entries(options)
-   for (let [name, {args, tests}] of entries) {
-      const exports = glupost(...args)
-      it(name, (done) => {
-         for (let test of tests) {
-            try {
-               test(exports)
-            }
-            catch (e) {
-               done(e)
-               return
-            }
-         }
-         done()
+describe("configuration errors", () => {
+   let entries = Object.entries(invalids)
+   for (let [name, {tasks, error}] of entries) {
+      it(name, async () => {
+         let setup = () => glupost({tasks}, {register: true})
+         let error_test = ({message}) => assert_equal(message, error)
+
+         await run_test({setup, error_test})
       })
    }
+})
 
+describe("watch tasks", () => {
+   let entries = Object.entries(watchers)
+   for (let [name, {init, triggers, test}] of entries) {
+      it(name, async () => {
+         let setup = async (state) => {
+            let tasks = init(state)
+            glupost({tasks}, {register: true})
+
+            // Watch task does not terminate, so instead of invoking it as a gulp task, we execute the
+            // unwrapped function synchronously to setup the watchers and get the unwatch callback.
+            let unwatch = gulp.task("watch").unwrap()()
+            state.unwatch = unwatch
+         }
+         let wrapped_test = async (state) => {
+            let error = null
+            try {
+               for (let trigger of triggers) {
+                  await sleep(75)
+                  await trigger()
+               }
+               await sleep(75)
+               test(state)
+            }
+            catch (e) {
+               error = e
+            }
+
+            await state.unwatch()
+
+            if (error)
+               throw error
+         }
+         await run_test({setup, test: wrapped_test})
+      })
+   }
 })
 
 
-
-function time() {
-
-   const [s, ns] = process.hrtime()
-   return (s * 1000000) + (ns / 1000)
-
+class Registry {
+   constructor() { this._tasks = {} }
+   init() { this._tasks = {} }
+   get(name) { return this._tasks[name] }
+   set(name, task) { this._tasks[name] = task }
+   tasks() { return this._tasks }
 }
 
-function read(path) {
+async function run_test({setup_begin, setup, setup_end, test, error_test}) {
+   gulp.registry(new Registry())
 
-   return fs.readFileSync(path, "utf8")
+   if (test && error_test)
+      throw new Error("Pick .test or .error_test")
+   if (!test && !error_test)
+      throw new Error("Pick .test or .error_test")
 
-}
+   let error = null
+   let errored = false
+   let state = {}
+   try {
+      if (setup_begin)
+         await setup_begin(state)
+      if (setup)
+         await setup(state)
+      if (setup_end)
+         await setup_end(state)
+   }
+   catch (e) {
+      error = e
+      errored = true
+   }
 
-function write(path, content) {
-
-   if (content)
-      fs.outputFileSync(path, content)
-   else
-      fs.ensureDirSync(path)
-
+   if (errored) {
+      if (test)
+         throw error
+      else
+         await error_test(error)
+   }
+   else {
+      if (error_test)
+         throw new Error("Missing expected exception")
+      else
+         await test(state)
+   }
 }
 
 async function run_task(name) {
@@ -541,8 +571,26 @@ async function run_task(name) {
    })
 }
 
+function time() {
+   let [s, ns] = process.hrtime()
+   return (s * 1000000) + (ns / 1000)
+}
+
+function read(path) {
+   return fs.readFileSync(path, "utf8")
+}
+
+function write(path, content) {
+   if (content)
+      fs.outputFileSync(path, content)
+   else
+      fs.ensureDirSync(path)
+}
+
+function remove(path) {
+   fs.removeSync(path)
+}
+
 async function sleep(ms) {
-
    return new Promise((resolve) => setTimeout(resolve, ms))
-
 }
