@@ -1,6 +1,6 @@
 # glupost
 
-A declarative approach at gulp.
+Build your gulp tasks from a configuration object.
 
 
 ### Usage
@@ -8,39 +8,40 @@ A declarative approach at gulp.
 Running
 
 ```
-gulp
+gulp start
 ```
 
 with a `gulpfile.js`
 
 ```javascript
 // Transforms/plugins.
-const toc = require("gulp-markdown-toc")()
-const marked = (contents, file) => require("marked")(contents)
+let toc = require("gulp-markdown-toc")()
+let marked = (contents, file) => require("marked")(contents)
 
-// Declared tasks.
-const configuration = {
-  template: {
-    base: "src/",
-    dest: "dist/"
-  },
 
-  tasks: {
-    "md-to-html": {
+// Build tasks.
+let tasks = {
+   "md-to-html": {
       src: "src/docs/*.md",
-      watch: true,
-      rename: { extname: ".html" },
-      transforms: [toc, marked]
-    },
-    "default": {
+      rename: {extname: ".html"},
+      transforms: [toc, marked],
+      watch: true
+   },
+   "start": {
       series: ["md-to-html", "watch"]
-    }
-  }
+   }
+}
+
+let options = {
+   template = {
+      base: "src/",
+      dest: "dist/"
+   }
 }
 
 // Build the actual tasks.
-const glupost = require("glupost")
-glupost(configuration)
+let glupost = require("glupost")
+module.exports = glupost(tasks, options)
 ```
 
 and a file structure
@@ -54,7 +55,7 @@ and a file structure
 │   │   └── Examples.md
 ```
 
-would run `md-to-html` and `watch` in series, producing
+would run `start`, that is, `md-to-html` and `watch` in series, producing
 
 ```
 ├── dist/
@@ -70,11 +71,19 @@ once initially, and again on every file change.
 
 ### API
 
-The module exports a function expecting a configuration object like __`{ tasks [, template] }`__.
+### `glupost(tasks[, options])`
 
-- __tasks__ is an object containing configured tasks, invoked by `gulp <task>`.
+Return an object containing gulp tasks ready for registration.
 
-- __template__ is a an object serving as a base for all tasks.
+<br>
+
+__`tasks`__ » object declaring the tasks, invoked by `gulp <task>`.
+
+__`options.template`__ » object serving as a base for tasks with `.src`.
+
+__`options.beep`__ » boolean controlling if a beep sound is played once all watch-triggered tasks execute. `false` by default.
+
+__`options.register`__ » boolean controlling if tasks are registered to gulp or not. `false` by default.
 
 
 -----
@@ -83,40 +92,53 @@ Declaration of a task takes one of the following forms:
 
 ```javascript
 {
-  // Name of another task.
-  "task1": "task2",
+   // Name of another task.
+   "alias": "another task",
 
-  // Callback function.
-  "task2": () => console.log("task2 started."),
+   // Function.
+   "sync callback": () => {},
+   "async callback": (done) => done(),
+   "async promise": async () => {},
 
-  // Configuration object.
-  "task3": {
-    series: ["task1", () => console.log("task2 ended.")]
-  }
+   // Task object.
+   "vinyl stream task": {
+      src: "path",
+      dest: "."
+   },
+   "wrapped": {
+      task: () => {}
+   },
+   "tasks in series": {
+      series: [...]
+   },
+   "tasks in parallel": {
+      parallel: [...]
+   }
 }
 ```
 
-A task (or template) configuration object accepts:
+_A composition task object accepts one of:_
 
-- __task.src__
+__`.task`__ » wrapper around a task, useful for `{watch: "path", task: () => {}}`.
 
-  String passed to [gulp.src()](https://gulpjs.com/docs/en/api/src) to start the stream or a [Vinyl](https://gulpjs.com/docs/en/api/vinyl) file.
+__`.series`__ » passed to [gulp.series()](https://gulpjs.com/docs/en/api/series), but also accepts task objects.
 
-- __task.dest__
+__`.parallel`__ » passed to [gulp.parallel()](https://gulpjs.com/docs/en/api/parallel), but also accepts task objects.
 
-  Passed to [gulp.dest()](https://gulpjs.com/docs/en/api/dest) to output the files. Defaults to gulp's working directory.
 
-- __task.base__
+<br>
 
-  Passed as [base](https://gulpjs.com/docs/en/api/src#options) option to gulp.src().
+_A Vinyl stream task object (and `options.template`) accepts:_
 
-- __task.rename__
+__`.src`__ » string passed to [gulp.src()](https://gulpjs.com/docs/en/api/src) to start the stream or a [Vinyl](https://gulpjs.com/docs/en/api/vinyl) file.
 
-  Passed to [gulp-rename](https://github.com/hparra/gulp-rename) prior to writing.
+__`.dest`__ » passed to [gulp.dest()](https://gulpjs.com/docs/en/api/dest) to output the files. Defaults to gulp's working directory.
 
-- __task.transforms__
+__`.base`__ » passed as [base](https://gulpjs.com/docs/en/api/src#options) option to gulp.src().
 
-  Array of transform functions which receive [file.contents](https://gulpjs.com/docs/en/api/vinyl#options) and [file](https://gulpjs.com/docs/en/api/vinyl) parameters and must return a Vinyl file or its contents directly (in form of a string or a buffer), or a promise which resolves with one of those.
+__`.rename`__ » passed to [gulp-rename](https://github.com/hparra/gulp-rename) prior to writing.
+
+__`.transforms`__ » array of transform functions that receive [file.contents](https://gulpjs.com/docs/en/api/vinyl#options) and [file](https://gulpjs.com/docs/en/api/vinyl) parameters and must return a Vinyl file or its contents directly (as string or buffer), or a promise that resolves with one of those.
 
   ```javascript
   // Return string directly.
@@ -126,25 +148,19 @@ A task (or template) configuration object accepts:
 
   // Return Vinyl file.
   function copyright(contents, file) {
-    const suffix = Buffer.from("\nCopyright © 2017")
+    let suffix = Buffer.from("\nCopyright © 2017")
     file.contents = Buffer.concat(contents, suffix)
     return file
   }
 
   // Return promise.
-  function copyright(contents) {
-    return Promise.resolve(contents + "\nCopyright © 2017")
+  async function copyright(contents) {
+    return contents + "\nCopyright © 2017"
   }
   ```
 
-- __task.series__
+<br>
 
-  Passed to [gulp.series()](https://gulpjs.com/docs/en/api/series), but also accepts task configuration objects.
+_All task objects accept:_
 
-- __task.parallel__
-
-  Passed to [gulp.parallel()](https://gulpjs.com/docs/en/api/parallel), but also accepts task configuration objects.
-
-- __task.watch__
-
-  Paths used by [gulp.watch()](https://gulpjs.com/docs/en/api/watch) to trigger the task. If set to `true`, the task's `.src` will be watched. All watchers are invoked by the generated _watch_ task.
+__`.watch`__ » paths used by [gulp.watch()](https://gulpjs.com/docs/en/api/watch) to trigger the task. If set to `true`, the task's `.src` will be watched. All watchers are invoked by the generated _watch_ task.
