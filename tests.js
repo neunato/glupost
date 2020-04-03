@@ -1,14 +1,17 @@
 "use strict"
 
-let assert = require("assert")
 let fs = require("fs-extra")
+let promisify = require('util').promisify
+let exec = promisify(require("child_process").exec)
+let spawn = require("child_process").spawn
+let fkill = require("fkill")
+let assert = require("assert")
+let assert_equal = assert.deepStrictEqual
+let assert_throws = assert.throws
 let gulp = require("gulp")
 let glupost = require(".")
 let async_done = require("async-done")
 let Vinyl = require("vinyl")
-
-let assert_equal = assert.deepStrictEqual
-let assert_throws = assert.throws
 
 
 let tests = {
@@ -173,7 +176,7 @@ let tests = {
       test: () => assert_equal(read("birds/owls.txt"), "Do owls exist?\n- yes\n- no\n- maybe!")
    },
 
-   "object (wrapped callback)": {
+   "object (wrapped function)": {
       init: (state) => ({
          "main": {
             task: () => {
@@ -530,6 +533,272 @@ let watchers = {
    }
 }
 
+let cli = {
+   "function": {
+      init: () => glupost({
+         "main": () => {}
+      }),
+      command: "gulp main",
+      output: `
+         [X] Starting 'main'...
+         [X] Finished 'main' after [X]
+      `
+   },
+   "alias": {
+      init: () => glupost({
+         "main": "mane",
+         "mane": () => {}
+      }),
+      command: "gulp main",
+      output: `
+         [X] Starting 'main'...
+         [X] Finished 'main' after [X]
+      `
+   },
+   "aliased alias": {
+      init: () => glupost({
+         "main": "mane",
+         "mane": "maine",
+         "maine": () => {}
+      }),
+      command: "gulp main",
+      output: `
+      [X] Starting 'main'...
+      [X] Finished 'main' after [X]
+      `
+   },
+   "object (src)": {
+      init: () => glupost({
+         "main": {
+            src: "birds/owls.txt",
+            dest: "birds/"
+         }
+      }),
+      command: "gulp main",
+      output: `
+         [X] Starting 'main'...
+         [X] Finished 'main' after [X]
+      `
+   },
+   "object (wrapped function)": {
+      init: () => glupost({
+         "main": {
+            task: () => {}
+         }
+      }),
+      command: "gulp main",
+      output: `
+         [X] Starting 'main'...
+         [X] Finished 'main' after [X]
+      `
+   },
+   "object (wrapped wrapped function)": {
+      init: () => glupost({
+         "main": {
+            task: {
+               task: () => {}
+            }
+         }
+      }),
+      command: "gulp main",
+      output: `
+         [X] Starting 'main'...
+         [X] Finished 'main' after [X]
+      `
+   },
+   "object (wrapped alias)": {
+      init: () => glupost({
+         "main": {task: "mane"},
+         "mane": "maine",
+         "maine": () => {}
+      }),
+      command: "gulp main",
+      output: `
+         [X] Starting 'main'...
+         [X] Finished 'main' after [X]
+      `
+   },
+   "object (series)": {
+      init: () => glupost({
+         "main": {
+            series: [
+               "maine",
+               {task: "maine"},
+               {task: {task: "maine"}},
+               () => {},
+               function named(){},
+               {task: () => {}},
+               {task: function named(){}},
+               {src: "birds/owls.txt", dest: "birds/"},
+               {task: {src: "birds/owls.txt", dest: "birds/"}},
+               {series: [() => {}]}
+            ]
+         },
+         "maine": () => {}
+      }),
+      command: "gulp main",
+      output: `
+         [X] Starting 'main'...
+         [X] Starting 'maine'...
+         [X] Finished 'maine' after [X]
+         [X] Starting 'maine'...
+         [X] Finished 'maine' after [X]
+         [X] Starting 'maine'...
+         [X] Finished 'maine' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Starting 'named'...
+         [X] Finished 'named' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Starting 'named'...
+         [X] Finished 'named' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Finished 'main' after [X]
+      `
+   },
+   "watch task (--beep=false)": {
+      init: () => glupost({
+         "main": {
+            watch: "birds/owls.txt",
+            series: [
+               "maine",
+               {task: "maine"},
+               {task: {task: "maine"}},
+               () => {},
+               function named(){},
+               {task: () => {}},
+               {task: function named(){}},
+               {src: "birds/owls.txt", dest: "birds/prey/"},
+               {task: {src: "birds/owls.txt", dest: "birds/prey/"}},
+               {series: [() => {}]}
+            ]
+         },
+         "maine": () => {}
+      }),
+      command: "gulp watch",
+      trigger: () => write("birds/owls.txt", "no"),
+      output: `
+         [X] Starting 'watch'...
+         [X] Watching 'birds/owls.txt' for changes...
+         [X] 'birds/owls.txt' was changed, running 'main'...
+         [X] Starting 'main'...
+         [X] Starting 'maine'...
+         [X] Finished 'maine' after [X]
+         [X] Starting 'maine'...
+         [X] Finished 'maine' after [X]
+         [X] Starting 'maine'...
+         [X] Finished 'maine' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Starting 'named'...
+         [X] Finished 'named' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Starting 'named'...
+         [X] Finished 'named' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Finished 'main' after [X]
+      `
+   },
+
+   "watch task (--beep=true)": {
+      init: () => glupost({
+         "main": {
+            watch: "birds/owls.txt",
+            series: [
+               "maine",
+               {task: "maine"},
+               {task: {task: "maine"}},
+               () => {},
+               function named(){},
+               {task: () => {}},
+               {task: function named(){}},
+               {src: "birds/owls.txt", dest: "birds/prey/"},
+               {task: {src: "birds/owls.txt", dest: "birds/prey/"}},
+               {series: [() => {}]}
+            ]
+         },
+         "maine": () => {}
+      }, {beep: true}),
+      command: "gulp watch",
+      trigger: () => write("birds/owls.txt", "no"),
+      output: `
+         [X] Starting 'watch'...
+         [X] Watching 'birds/owls.txt' for changes...
+         [X] 'birds/owls.txt' was changed, running 'main'...
+         [X] Starting 'main'...
+         [X] Starting 'maine'...
+         [X] Finished 'maine' after [X]
+         [X] Starting 'maine'...
+         [X] Finished 'maine' after [X]
+         [X] Starting 'maine'...
+         [X] Finished 'maine' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Starting 'named'...
+         [X] Finished 'named' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Starting 'named'...
+         [X] Finished 'named' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Starting '<anonymous>'...
+         [X] Finished '<anonymous>' after [X]
+         [X] Finished 'main' after [X]
+         \u0007`
+   },
+
+   "--tasks": {
+      init: () => glupost({
+         "A": "B",
+         "B": {task: "C"},
+         "C": () => {},
+         "D": {
+            series: [
+               "A",
+               "B",
+               "C",
+               function D(){},
+               () => {},
+               {src: " "},
+               {task: () => {}},
+               {parallel: [() => {}]
+            }
+         ]},
+      }),
+      command: "gulp --tasks",
+      output: `
+         [X] ├── A
+         [X] ├── B
+         [X] ├── C
+         [X] └─┬ D
+         [X]   └─┬ <series>
+         [X]     ├── A
+         [X]     ├── B
+         [X]     ├── C
+         [X]     ├── D
+         [X]     ├── <anonymous>
+         [X]     ├── <anonymous>
+         [X]     ├── <anonymous>
+         [X]     └─┬ <parallel>
+         [X]       └── <anonymous>
+      `
+   }
+}
 
 // Before/after hooks.
 beforeEach(() => write("birds/owls.txt", "Do owls exist?"))
@@ -610,8 +879,67 @@ describe("watch tasks", () => {
    }
 })
 
+describe("command line output", () => {
+   let entries = Object.entries(cli)
+   for (let [name, {init, command, trigger, output}] of entries) {
+      it(name, async () => {
+         let setup = async (state) => {
+            let gulpfile = `
+               'use strict'
+               let glupost = require('.')
+               module.exports = (${init.toString()})()`
+            write("test_gulpfile.js", gulpfile)
 
-async function run_test({setup_begin, setup, setup_end, test, error_test}) {
+            command = command.replace(/^gulp/, "gulp --gulpfile test_gulpfile.js")
+
+            if (trigger) {
+               let args = command.slice(5).split(" ")
+               let gulp = spawn("gulp", args, {shell: true})
+               state.gulp = gulp
+               await sleep(1000)
+            }
+            else {
+               let {stdout, stderr} = await exec(command)
+               state.stdout = stdout
+               state.stderr = stderr
+            }
+            return state
+         }
+         let test = async (state) => {
+            let stdout = ""
+            let stderr = ""
+            if (trigger) {
+               let child = state.gulp
+               child.stdout.on("data", (s) => stdout += s)
+               child.stderr.on("data", (s) => stderr += s)
+               await trigger()
+               await fkill(child.pid, {"force": true})
+            }
+            else {
+               stdout = state.stdout
+               stderr = state.stderr
+            }
+
+            stdout = stdout.replace(/^.+?\n/, "")
+            stdout = stdout.replace(/^\[.+?] /gm, "[X] ")
+            stdout = stdout.replace(/after [\d.]+ .?s$/gm, "after [X]")
+            stdout = stdout.replace(/\[X] (?:Using gulpfile|Tasks for) .+\n/, "")
+            output = output.replace(/^\s+/gm, "")
+
+            assert_equal("", stderr)
+            assert_equal(output, stdout)
+         }
+         let cleanup = () => {
+            remove("test_gulpfile.js")
+         }
+
+         await run_test({setup, test, cleanup})
+      })
+   }
+})
+
+
+async function run_test({setup_begin, setup, setup_end, test, error_test, cleanup}) {
    if (test && error_test)
       throw new Error("Pick .test or .error_test")
    if (!test && !error_test)
@@ -645,6 +973,9 @@ async function run_test({setup_begin, setup, setup_end, test, error_test}) {
       else
          await test(state)
    }
+
+   if (cleanup)
+      await cleanup()
 }
 
 async function run_task(name) {

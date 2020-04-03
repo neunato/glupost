@@ -3,6 +3,7 @@
 let gulp = require("gulp")
 let rename = require("gulp-rename")
 let through = require("through2")
+let async_done = require("async-done")
 let Vinyl = require("vinyl")
 
 
@@ -24,12 +25,12 @@ function glupost(tasks={}, {template={}, logger=console, beep=false, register=fa
    // Replace tasks with normalised objects.
    let entries = Object.entries(tasks)
    for (let [name, task] of entries)
-      tasks[name] = init(task, template)
+      tasks[name] = init(task, template, name)
 
    // Create watch task (after other tasks are initialised).
    let watch_task = create_watch_task(tasks, logger, beep)
    if (watch_task)
-      tasks["watch"] = init(watch_task)
+      tasks["watch"] = init(watch_task, {}, "watch")
 
    // Compose gulp tasks (after watch task is ready).
    let gulp_tasks = {}
@@ -49,17 +50,24 @@ function glupost(tasks={}, {template={}, logger=console, beep=false, register=fa
 
 // Recursively validate and normalise task and its properties, add wrappers around
 // strings and functions, and return the (wrapped) task.
-function init(task, template) {
+function init(task, template, name=null) {
    validate(task)
 
    // 1. named task.
    if (typeof task === "string") {
-      return {alias: task}
+      if (!name)
+         name = task
+      return {name, alias: task}
    }
 
    // 2. a function directly.
    if (typeof task === "function") {
-      return {callback: task}
+      if (!name) {
+         let m = /^function (.+)\(/.exec(task.toString())
+         if (m)
+            name = m[1]
+      }
+      return {name, callback: task}
    }
 
    // 3. task object.
@@ -70,13 +78,19 @@ function init(task, template) {
       if (task.watch === true)
          task.watch = task.src
 
-      if (task.task)
+      if (task.task) {
          task.task = init(task.task, template)
-      else if (task.series)
+         if (!name)
+            name = task.task.name
+      }
+      else if (task.series) {
          task.series = task.series.map((task) => init(task, template))
-      else if (task.parallel)
+      }
+      else if (task.parallel) {
          task.parallel = task.parallel.map((task) => init(task, template))
+      }
 
+      task.name = name
       return task
    }
 }
@@ -99,7 +113,9 @@ function compose(task, tasks, aliases=new Set()) {
          throw new Error("Circular aliases.")
 
       aliases.add(name)
-      action = compose(aliased_task, tasks, aliases)
+      let f = compose(aliased_task, tasks, aliases)
+      aliases.delete(name)
+      action = (done) => async_done(f, done)
    }
 
    else if (task.callback) {
@@ -112,7 +128,8 @@ function compose(task, tasks, aliases=new Set()) {
    }
 
    else if (task.task) {
-      action = compose(task.task, tasks, aliases)
+      let f = compose(task.task, tasks, aliases)
+      action = (done) => async_done(f, done)
    }
 
    else if (task.series) {
@@ -128,6 +145,7 @@ function compose(task, tasks, aliases=new Set()) {
       throw new Error("Invalid task structure.")       // Not expected.
    }
 
+   action.displayName = task.name || "<anonymous>"
    task.action = action
 
    return action
@@ -198,30 +216,31 @@ function create_watch_task(tasks, logger, beep) {
 
    return (_done) => {
       let running = 0
-
       let watchers = tasks.map((task) => {
+         let watch = task.watch
          let action
 
          // Play a beep sound once all triggered watched tasks are finished.
          if (beep) {
-            action = function (done) {
+            action = (done) => {
                running++
-               gulp.series(task.action)(() => {
+               async_done(task.action, () => {
                   done()
                   running--
                   setTimeout(() => { if (running===0) process.stdout.write("\x07") }, 10)
                })
             }
          }
+         // When the invoked task is series/parallel, only the subtasks are logged,
+         // regardless of displayName. Therefore, wrapper.
          else {
-            action = task.action
+            action = (done) => async_done(task.action, done)
          }
 
          action.displayName = task.name
 
-         let watch = task.watch
          let watcher = gulp.watch(watch, {delay: 0}, action)
-         watcher.on("change", (path) => logger.info(timestamp() + " '" + path + "' was changed, running '" + action.displayName + "'..."))
+         watcher.on("change", (path) => logger.info(timestamp() + " '" + path + "' was changed, running '" + task.name + "'..."))
          logger.info(timestamp() + " Watching '" + watch + "' for changes...")
          return watcher
       })
