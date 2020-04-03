@@ -10,7 +10,7 @@ module.exports = glupost
 
 
 // Create gulp tasks.
-function glupost(tasks={}, {template={}, logger=console, register=false} = {}) {
+function glupost(tasks={}, {template={}, logger=console, beep=false, register=false} = {}) {
 
    // Second call to glupost clears previous tasks.
    gulp.registry(new Registry())
@@ -27,7 +27,7 @@ function glupost(tasks={}, {template={}, logger=console, register=false} = {}) {
       tasks[name] = init(task, template)
 
    // Create watch task (after other tasks are initialised).
-   let watch_task = create_watch_task(tasks, logger)
+   let watch_task = create_watch_task(tasks, logger, beep)
    if (watch_task)
       tasks["watch"] = init(watch_task)
 
@@ -164,7 +164,7 @@ function validate(task) {
 
 
 // Generate a watch task based on .watch property of other tasks.
-function create_watch_task(tasks, logger) {
+function create_watch_task(tasks, logger, beep) {
    if (tasks["watch"]) {
       logger.warn(timestamp() + " 'watch' task redefined.")
       return null
@@ -196,10 +196,32 @@ function create_watch_task(tasks, logger) {
    if (!tasks.length)
       return null
 
-   return (done) => {
-      let watchers = tasks.map(({watch, action}) => {
+   return (_done) => {
+      let running = 0
+
+      let watchers = tasks.map((task) => {
+         let action
+
+         // Play a beep sound once all triggered watched tasks are finished.
+         if (beep) {
+            action = function (done) {
+               running++
+               gulp.series(task.action)(() => {
+                  done()
+                  running--
+                  setTimeout(() => { if (running===0) process.stdout.write("\x07") }, 10)
+               })
+            }
+         }
+         else {
+            action = task.action
+         }
+
+         action.displayName = task.name
+
+         let watch = task.watch
          let watcher = gulp.watch(watch, {delay: 0}, action)
-         watcher.on("change", (path) => logger.info(timestamp() + " " + path + " was changed, running tasks..."))
+         watcher.on("change", (path) => logger.info(timestamp() + " '" + path + "' was changed, running '" + action.displayName + "'..."))
          logger.info(timestamp() + " Watching '" + watch + "' for changes...")
          return watcher
       })
