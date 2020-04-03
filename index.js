@@ -189,27 +189,16 @@ function create_watch_task(tasks, logger, beep) {
    }
 
    // Filter tasks that need watching.
-   let name = parse_arg("task")
-   if (name) {
-      let task = tasks[name]
-      if (!task)
-         throw new Error("Task never defined: " + name + ".")
-      if (!task.watch)
-         throw new Error("Missing .watch in '" + name + "' task.")
-      tasks = [task]
-   }
-   else {
-      tasks = Object.values(tasks)
-      tasks = tasks.reduce(function flatten(watched, task) {
-         if (task.watch)
-            watched.add(task)
-         let subtasks = [].concat(task.task || task.series || task.parallel || [])
-         for (let subtask of subtasks)
-            flatten(watched, subtask)
-         return watched
-      }, new Set())
-      tasks = [...tasks]
-   }
+   tasks = Object.values(tasks)
+   tasks = tasks.reduce(function flatten(watched, task) {
+      if (task.watch)
+         watched.add(task)
+      let subtasks = [].concat(task.task || task.series || task.parallel || [])
+      for (let subtask of subtasks)
+         flatten(watched, subtask)
+      return watched
+   }, new Set())
+   tasks = [...tasks]
 
    if (!tasks.length)
       return null
@@ -299,22 +288,6 @@ function pluginate(transform) {
          done(e)
       })
    })
-}
-
-
-// Return the (last) value of a command line argument under 'name' given to the script.
-function parse_arg(name) {
-   let args = process.argv
-   if (!args[1].endsWith("gulp.js"))
-      return null
-   args = args.slice(2).reverse()
-   let re = new RegExp("^--" + name + "=(.+)$")
-   for (let arg of args) {
-      let task = re.exec(arg)
-      if (task)
-         return task[1]
-   }
-   return null
 }
 
 
