@@ -10,6 +10,15 @@ let Vinyl = require("vinyl")
 module.exports = glupost
 
 
+class Registry {
+   constructor() { this._tasks = {} }
+   init() { this._tasks = {} }
+   get(name) { return this._tasks[name] }
+   set(name, task) { this._tasks[name] = task }
+   tasks() { return this._tasks }
+}
+
+
 // Create gulp tasks.
 function glupost(tasks={}, {template={}, logger=console, beep=false, register=false} = {}) {
 
@@ -304,13 +313,4 @@ function expand(to, from) {
 // Output current time in '[HH:MM:SS]' format.
 function timestamp() {
    return "[" + new Date().toLocaleTimeString("hr-HR") + "]"
-}
-
-
-class Registry {
-   constructor() { this._tasks = {} }
-   init() { this._tasks = {} }
-   get(name) { return this._tasks[name] }
-   set(name, task) { this._tasks[name] = task }
-   tasks() { return this._tasks }
 }
