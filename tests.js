@@ -84,7 +84,7 @@ let tests = {
             rename: "birds/owls-do.txt"
          }
       }),
-      test: () => assert_equal(read("birds/owls.txt"), read("birds/owls-do.txt"))
+      test: () => assert_equal(read("birds/owls-do.txt"), read("birds/owls.txt"))
    },
 
    "object (dest)": {
@@ -94,7 +94,7 @@ let tests = {
             dest: "birds/prey/"
          }
       }),
-      test: () => assert_equal(read("birds/owls.txt"), read("birds/prey/owls.txt"))
+      test: () => assert_equal(read("birds/prey/owls.txt"), read("birds/owls.txt"))
    },
 
    "object (base)": {
@@ -105,7 +105,7 @@ let tests = {
             dest: "birds/prey/"
          }
       }),
-      test: () => assert_equal(read("birds/owls.txt"), read("birds/prey/owls.txt"))
+      test: () => assert_equal(read("birds/prey/owls.txt"), read("birds/owls.txt"))
    },
 
    "object (transform-string)": {
@@ -227,9 +227,18 @@ let tests = {
          }
       }),
       test: ({first, second}) => assert_equal(first > second, true)
+   }
+}
+
+let errors = {
+   "function": {
+      init: (state) => ({
+         "main": () => {throw new Error("Ouch.")}
+      }),
+      error_test: ({message}) => assert_equal(message, "Ouch.")
    },
 
-   "object (invalid src)": {
+   "object (src)": {
       init: (state) => ({
          "main": {
             src: "_"
@@ -238,7 +247,7 @@ let tests = {
       error_test: ({message}) => assert_equal(message, "File not found with singular glob: " + __dirname.replace(/\\/g, "/") + "/_ (if this was purposeful, use `allowEmpty` option)")
    },
 
-   "object (invalid transform)": {
+   "object (transform return value)": {
       init: (state) => ({
          "main": {
             src: "birds/owls.txt",
@@ -246,6 +255,16 @@ let tests = {
          }
       }),
       error_test: ({message}) => assert_equal(message, "Transforms must return/resolve with a file, a buffer or a string.")
+   },
+
+   "object (transform error)": {
+      init: (state) => ({
+         "main": {
+            src: "birds/owls.txt",
+            transforms: [() => {throw new Error("Ouch.")}]
+         }
+      }),
+      error_test: ({message}) => assert_equal(message, "Ouch.")
    }
 }
 
@@ -539,22 +558,24 @@ let cli = {
          "main": () => {}
       }),
       command: "gulp main",
-      output: `
+      stdout: `
          [X] Starting 'main'...
          [X] Finished 'main' after [X]
       `
    },
+
    "alias": {
       init: () => glupost({
          "main": "mane",
          "mane": () => {}
       }),
       command: "gulp main",
-      output: `
+      stdout: `
          [X] Starting 'main'...
          [X] Finished 'main' after [X]
       `
    },
+
    "aliased alias": {
       init: () => glupost({
          "main": "mane",
@@ -562,11 +583,12 @@ let cli = {
          "maine": () => {}
       }),
       command: "gulp main",
-      output: `
+      stdout: `
       [X] Starting 'main'...
       [X] Finished 'main' after [X]
       `
    },
+
    "object (src)": {
       init: () => glupost({
          "main": {
@@ -575,11 +597,12 @@ let cli = {
          }
       }),
       command: "gulp main",
-      output: `
+      stdout: `
          [X] Starting 'main'...
          [X] Finished 'main' after [X]
       `
    },
+
    "object (wrapped function)": {
       init: () => glupost({
          "main": {
@@ -587,11 +610,12 @@ let cli = {
          }
       }),
       command: "gulp main",
-      output: `
+      stdout: `
          [X] Starting 'main'...
          [X] Finished 'main' after [X]
       `
    },
+
    "object (wrapped wrapped function)": {
       init: () => glupost({
          "main": {
@@ -601,11 +625,12 @@ let cli = {
          }
       }),
       command: "gulp main",
-      output: `
+      stdout: `
          [X] Starting 'main'...
          [X] Finished 'main' after [X]
       `
    },
+
    "object (wrapped alias)": {
       init: () => glupost({
          "main": {task: "mane"},
@@ -613,11 +638,12 @@ let cli = {
          "maine": () => {}
       }),
       command: "gulp main",
-      output: `
+      stdout: `
          [X] Starting 'main'...
          [X] Finished 'main' after [X]
       `
    },
+
    "object (series)": {
       init: () => glupost({
          "main": {
@@ -637,7 +663,7 @@ let cli = {
          "maine": () => {}
       }),
       command: "gulp main",
-      output: `
+      stdout: `
          [X] Starting 'main'...
          [X] Starting 'maine'...
          [X] Finished 'maine' after [X]
@@ -662,6 +688,7 @@ let cli = {
          [X] Finished 'main' after [X]
       `
    },
+
    "watch task (--beep=false)": {
       init: () => glupost({
          "main": {
@@ -683,7 +710,7 @@ let cli = {
       }),
       command: "gulp watch",
       trigger: () => write("birds/owls.txt", "no"),
-      output: `
+      stdout: `
          [X] Starting 'watch'...
          [X] Watching 'birds/owls.txt' for changes...
          [X] 'birds/owls.txt' was changed, running 'main'...
@@ -733,7 +760,7 @@ let cli = {
       }, {beep: true}),
       command: "gulp watch",
       trigger: () => write("birds/owls.txt", "no"),
-      output: `
+      stdout: `
          [X] Starting 'watch'...
          [X] Watching 'birds/owls.txt' for changes...
          [X] 'birds/owls.txt' was changed, running 'main'...
@@ -762,7 +789,52 @@ let cli = {
          \u0007`
    },
 
-   "--tasks": {
+   "watch task error (--beep=false)": {
+      init: () => glupost({
+         "main": {
+            watch: "birds/owls.txt",
+            task: () => {throw new Error("Ouch.")}
+         }
+      }),
+      command: "gulp watch",
+      trigger: () => write("birds/owls.txt", "no"),
+      stdout: `
+         [X] Starting 'watch'...
+         [X] Watching 'birds/owls.txt' for changes...
+         [X] 'birds/owls.txt' was changed, running 'main'...
+         [X] Starting 'main'...
+      `,
+      stderr: `
+         [X] 'main' errored after [X]
+         [X] Error: Ouch.
+         at [X]...
+      `
+   },
+
+   "watch task error (--beep=true)": {
+      init: () => glupost({
+         "main": {
+            src: "birds/owls.txt",
+            watch: true,
+            transforms: [() => null]
+         }
+      }, {beep: true}),
+      command: "gulp watch",
+      trigger: () => write("birds/owls.txt", "no"),
+      stdout: `
+         [X] Starting 'watch'...
+         [X] Watching 'birds/owls.txt' for changes...
+         [X] 'birds/owls.txt' was changed, running 'main'...
+         [X] Starting 'main'...
+      `,
+      stderr: `
+         [X] 'main' errored after [X]
+         [X] Error: Transforms must return/resolve with a file, a buffer or a string.
+         at [X]...
+         \x07\x07\x07`
+   },
+
+   "gulp --tasks": {
       init: () => glupost({
          "A": "B",
          "B": {task: "C"},
@@ -781,7 +853,7 @@ let cli = {
          ]},
       }),
       command: "gulp --tasks",
-      output: `
+      stdout: `
          [X] ├── A
          [X] ├── B
          [X] ├── C
@@ -811,7 +883,7 @@ process.on("SIGINT", () => remove("birds"))
 // Run tests.
 describe("tasks", () => {
    let entries = Object.entries(tests)
-   for (let [name, {init, test, error_test}] of entries) {
+   for (let [name, {init, test}] of entries) {
       it(name, async () => {
          let setup = async (state) => {
             let tasks = init(state)
@@ -819,15 +891,24 @@ describe("tasks", () => {
 
             await run_task("main")
          }
-         await run_test({setup, test, error_test})
+         await run_test({setup, test})
       })
    }
 })
 
-describe("options", () => {
-   let entries = Object.entries(options)
-   for (let [name, {setup, test}] of entries)
-      it(name, async () => run_test({setup, test}))
+describe("runtime errors", () => {
+   let entries = Object.entries(errors)
+   for (let [name, {init, error_test}] of entries) {
+      it(name, async () => {
+         let setup = async (state) => {
+            let tasks = init(state)
+            glupost(tasks, {register: true})
+
+            await run_task("main")
+         }
+         await run_test({setup, error_test})
+      })
+   }
 })
 
 describe("setup errors", () => {
@@ -840,6 +921,12 @@ describe("setup errors", () => {
          await run_test({setup, error_test})
       })
    }
+})
+
+describe("options", () => {
+   let entries = Object.entries(options)
+   for (let [name, {setup, test}] of entries)
+      it(name, async () => run_test({setup, test}))
 })
 
 describe("watch tasks", () => {
@@ -881,7 +968,7 @@ describe("watch tasks", () => {
 
 describe("command line output", () => {
    let entries = Object.entries(cli)
-   for (let [name, {init, command, trigger, output}] of entries) {
+   for (let [name, {init, command, trigger, stdout="", stderr=""}] of entries) {
       it(name, async () => {
          let setup = async (state) => {
             let gulpfile = `
@@ -906,8 +993,10 @@ describe("command line output", () => {
             return state
          }
          let test = async (state) => {
-            let stdout = ""
-            let stderr = ""
+            let expected_stdout = stdout
+            let expected_stderr = stderr
+            stdout = ""
+            stderr = ""
             if (trigger) {
                let child = state.gulp
                child.stdout.on("data", (s) => stdout += s)
@@ -920,14 +1009,19 @@ describe("command line output", () => {
                stderr = state.stderr
             }
 
-            stdout = stdout.replace(/^.+?\n/, "")
             stdout = stdout.replace(/^\[.+?] /gm, "[X] ")
             stdout = stdout.replace(/after [\d.]+ .?s$/gm, "after [X]")
             stdout = stdout.replace(/\[X] (?:Using gulpfile|Tasks for) .+\n/, "")
-            output = output.replace(/^\s+/gm, "")
 
-            assert_equal("", stderr)
-            assert_equal(output, stdout)
+            stderr = stderr.replace(/^\[.+?] /gm, "[X] ")
+            stderr = stderr.replace(/after [\d.]+ .?s$/gm, "after [X]")
+            stderr = stderr.replace(/(\s+at .+?\n)+/, "\nat [X]...\n")
+
+            expected_stdout = expected_stdout.replace(/^\s+/gm, "")
+            expected_stderr = expected_stderr.replace(/^\s+/gm, "")
+
+            assert_equal(stderr, expected_stderr)
+            assert_equal(stdout, expected_stdout)
          }
          let cleanup = () => {
             remove("test_gulpfile.js")

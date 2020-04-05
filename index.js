@@ -222,10 +222,17 @@ function create_watch_task(tasks, logger, beep) {
          if (beep) {
             action = (done) => {
                running++
-               async_done(task.action, () => {
-                  done()
+               async_done(task.action, (error) => {
+                  done(error)
                   running--
-                  setTimeout(() => { if (running===0) process.stdout.write("\x07") }, 10)
+                  setTimeout(() => {
+                     if (running)
+                        return
+                     if (error)
+                        process.stderr.write("\x07\x07\x07")
+                     else
+                        process.stdout.write("\x07")
+                  }, 10)
                })
             }
          }
